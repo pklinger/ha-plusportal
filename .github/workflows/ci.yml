@@ -62,6 +62,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: home-assistant/actions/hassfest@master
 
+  version:
+    name: Version bump
+    # Shipped code under an unchanged version means Home Assistant and HACS
+    # keep serving the old one with nothing to indicate why.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run python scripts/check_version_bump.py origin/${{ github.base_ref }}
+
   hacs:
     name: HACS validation
     # HACS fetches hacs.json and manifest.json without authentication, which
