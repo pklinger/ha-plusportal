@@ -172,6 +172,7 @@ async def test_july_readings_match_the_portals_own_monthly_total(respx_mock, cli
 
 @respx.mock(assert_all_called=False)
 async def test_readings_keep_the_quality_flags_that_decide_billability(respx_mock, client):
+    """PP-EXT-008."""
     respx_mock.route(DIAGRAM_RESULT).mock(
         return_value=json_response("diagram_result_july2026.json")
     )
@@ -189,6 +190,7 @@ async def test_readings_keep_the_quality_flags_that_decide_billability(respx_moc
 
 @respx.mock(assert_all_called=False)
 async def test_the_request_asks_for_daily_buckets_of_the_right_channel(respx_mock, client):
+    """PP-EXT-002, PP-EXT-007."""
     route = respx_mock.route(DIAGRAM_RESULT).mock(
         return_value=json_response("diagram_result_july2026.json")
     )
@@ -219,6 +221,7 @@ async def test_values_outside_the_requested_range_are_dropped(respx_mock, client
 
 @respx.mock(assert_all_called=False)
 async def test_a_multi_month_range_is_split_into_one_request_per_month(respx_mock, client):
+    """PP-EXT-011."""
     route = respx_mock.route(DIAGRAM_RESULT).mock(
         side_effect=[
             diagram_payload(daily(date(2026, 5, 1), 31)),

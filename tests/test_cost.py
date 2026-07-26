@@ -57,6 +57,7 @@ def days(start: date, count: int, kwh_per_day: str) -> list[Reading]:
 
 
 def test_a_tariff_rejects_a_negative_energy_price():
+    """PP-COST-009."""
     with pytest.raises(ValueError, match="negative"):
         Tariff(energy_price_ct_per_kwh=Decimal("-1"), base_price_eur_per_year=Decimal("0"))
 
@@ -67,6 +68,7 @@ def test_a_tariff_rejects_a_negative_base_price():
 
 
 def test_a_billing_year_cannot_start_on_a_date_that_does_not_exist_every_year():
+    """PP-COST-006."""
     with pytest.raises(ValueError, match="29 February"):
         Tariff(
             energy_price_ct_per_kwh=Decimal("30"),
@@ -96,7 +98,7 @@ def test_energy_is_charged_at_the_tariff_price():
 
 
 def test_only_billable_values_are_charged():
-    """Preliminary values get replaced later; charging them invents consumption."""
+    """PP-COST-001: Preliminary values get replaced later; charging them invents consumption."""
     readings = [
         reading(date(2026, 1, 1), "10", state=ValueState.TRUE_VALUE),
         reading(date(2026, 1, 2), "10", state=ValueState.SUBSTITUTE),
@@ -111,14 +113,14 @@ def test_only_billable_values_are_charged():
 
 
 def test_the_base_price_is_charged_pro_rata_for_the_covered_time():
-    """A quarter of a 365-day year at 120 EUR/a is roughly 30 EUR."""
+    """PP-COST-004: A quarter of a 365-day year at 120 EUR/a is roughly 30 EUR."""
     breakdown = cost_of(days(date(2026, 1, 1), 91, "0"), TARIFF)
 
     assert breakdown.base_eur == Decimal("29.92")
 
 
 def test_the_total_is_the_sum_of_the_rounded_parts():
-    """An invoice that does not add up is worse than one that rounds a cent."""
+    """PP-COST-003: An invoice that does not add up is worse than one that rounds a cent."""
     breakdown = cost_of(days(date(2026, 1, 1), 30, "3.333"), TARIFF)
 
     assert breakdown.energy_kwh == Decimal("99.990")
@@ -128,7 +130,7 @@ def test_the_total_is_the_sum_of_the_rounded_parts():
 
 
 def test_money_is_rounded_half_up_not_to_even():
-    """0.125 EUR must become 0.13, the way invoices round."""
+    """PP-COST-002: 0.125 EUR must become 0.13, the way invoices round."""
     tariff = Tariff(energy_price_ct_per_kwh=Decimal("25"), base_price_eur_per_year=Decimal("0"))
     breakdown = cost_of([reading(date(2026, 1, 1), "0.5")], tariff)
 
@@ -160,6 +162,7 @@ def test_the_billing_year_defaults_to_the_calendar_year():
 
 
 def test_a_billing_year_starting_mid_year_runs_into_the_next():
+    """PP-COST-006."""
     tariff = Tariff(
         energy_price_ct_per_kwh=Decimal("30"),
         base_price_eur_per_year=Decimal("0"),
@@ -216,7 +219,7 @@ def test_a_projection_extrapolates_the_observed_rate_over_the_whole_year():
 
 
 def test_gaps_in_the_data_are_filled_at_the_observed_rate():
-    """Missing days must not read as zero consumption."""
+    """PP-COST-005: Missing days must not read as zero consumption."""
     sparse = days(date(2026, 1, 1), 50, "10") + days(date(2026, 3, 1), 50, "10")
 
     projection = project_billing_year(sparse, TARIFF, today=date(2026, 4, 30))
@@ -226,7 +229,7 @@ def test_gaps_in_the_data_are_filled_at_the_observed_rate():
 
 
 def test_a_partial_final_day_does_not_drag_the_average_down():
-    """Extrapolating per covered hour, not per calendar day, handles this."""
+    """PP-COST-005: Extrapolating per covered hour, not per calendar day, handles this."""
     full = days(date(2026, 1, 1), 10, "24")
     half_a_day = [reading(date(2026, 1, 11), "12", duration=timedelta(hours=12))]
 
@@ -260,6 +263,7 @@ def test_without_any_data_the_projection_is_the_base_price_alone():
 
 
 def test_readings_outside_the_billing_year_are_ignored():
+    """PP-COST-007."""
     inside = days(date(2026, 1, 1), 10, "10")
     before = days(date(2025, 12, 20), 10, "999")
 
@@ -305,6 +309,7 @@ def test_advances_paid_so_far_counts_elapsed_months():
 
 
 def test_without_a_configured_advance_there_is_no_settlement_figure():
+    """PP-COST-008."""
     no_advance = Tariff(
         energy_price_ct_per_kwh=Decimal("34.5"), base_price_eur_per_year=Decimal("120")
     )

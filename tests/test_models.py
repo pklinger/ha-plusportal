@@ -21,6 +21,7 @@ from pyplusportal.models import (
 
 
 def test_true_and_substitute_values_are_billable():
+    """PP-EXT-008."""
     assert ValueState.TRUE_VALUE.billable
     assert ValueState.SUBSTITUTE.billable
 
@@ -30,6 +31,7 @@ def test_preliminary_values_are_not_billable():
 
 
 def test_unknown_state_code_parses_to_unknown_and_is_not_billable():
+    """PP-EXT-008."""
     assert ValueState.parse("X") is ValueState.UNKNOWN
     assert not ValueState.UNKNOWN.billable
 
@@ -53,6 +55,7 @@ def _point(**overrides):
 
 
 def test_reading_timestamp_is_local_midnight_in_portal_timezone():
+    """PP-EXT-010."""
     reading = Reading.from_daily_api(_point(), obis="1-0:1.8.0")
 
     assert reading.start.isoformat() == "2026-07-01T00:00:00+02:00"
@@ -60,6 +63,7 @@ def test_reading_timestamp_is_local_midnight_in_portal_timezone():
 
 
 def test_reading_keeps_full_decimal_precision():
+    """PP-EXT-009."""
     reading = Reading.from_daily_api(_point(value=Decimal("0.018321")), obis="1-0:1.8.0")
 
     assert reading.value == Decimal("0.018321")
@@ -75,6 +79,7 @@ def test_reading_falls_back_to_value_a_when_value_is_absent():
 
 
 def test_reading_without_any_value_is_rejected():
+    """PP-EXT-017."""
     raw = _point()
     del raw["value"]
 
@@ -126,7 +131,7 @@ def test_meter_point_exposes_only_active_tariff_use_cases(user_item_list):
 
 
 def test_meter_point_prefers_the_highest_resolution_tariff_use_case(user_item_list):
-    """TAF-7 (Zählerstandsgangmessung) carries finer data than TAF-1 (datensparsam)."""
+    """PP-EXT-016: TAF-7 (Zählerstandsgangmessung) carries finer data than TAF-1 (datensparsam)."""
     point = MeterPoint.list_from_api(user_item_list)[0]
 
     assert point.primary_taf is not None
@@ -143,6 +148,7 @@ def test_meter_point_without_any_active_taf_has_no_primary(user_item_list):
 
 
 def test_meter_point_without_an_id_is_rejected(user_item_list):
+    """PP-EXT-017."""
     del user_item_list[0]["userItems"][0]["id"]
 
     with pytest.raises(ParseError, match="id"):
@@ -243,6 +249,7 @@ def test_session_knows_whether_the_energy_data_feature_is_enabled(session_payloa
 
 
 def test_naive_datetimes_are_never_produced(session_payload, overview_payload):
+    """PP-EXT-010."""
     session = Session.from_api(session_payload)
     overview = Overview.list_from_api(overview_payload)[0]
 

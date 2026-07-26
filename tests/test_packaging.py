@@ -34,18 +34,19 @@ def manifest() -> dict[str, Any]:
 
 
 def test_the_integration_version_matches_the_library_version(pyproject, manifest):
-    """HACS shows the manifest version; a mismatch misreports what is installed."""
+    """PP-SEC-004: HACS shows the manifest version; a mismatch misreports what is installed."""
     assert manifest["version"] == pyproject["project"]["version"]
 
 
 def test_the_integration_pins_the_library_version_it_was_built_against(pyproject, manifest):
+    """PP-SEC-004."""
     expected = f"{DISTRIBUTION}=={pyproject['project']['version']}"
 
     assert expected in manifest["requirements"]
 
 
 def test_the_library_is_pinned_exactly_rather_than_by_range(manifest):
-    """A range would let Home Assistant install a version never tested here."""
+    """PP-SEC-005: A range would let Home Assistant install a version never tested here."""
     pins = [req for req in manifest["requirements"] if req.startswith(DISTRIBUTION)]
 
     assert pins, "the integration must depend on the library"
@@ -77,7 +78,7 @@ def test_the_version_is_semver_because_hacs_compares_releases(manifest):
 
 
 def test_translations_cover_every_key_the_ui_declares():
-    """A missing key shows a raw identifier in the Home Assistant interface."""
+    """PP-SEC-006: A missing key shows a raw identifier in the Home Assistant interface."""
     base = json.loads((MANIFEST.parent / "strings.json").read_text(encoding="utf-8"))
 
     def leaves(node: dict[str, Any], prefix: str = "") -> set[str]:

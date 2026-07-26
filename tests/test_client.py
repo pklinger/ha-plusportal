@@ -38,6 +38,7 @@ def session_payload(session_payload):
 
 
 def test_tenant_number_expands_to_the_portal_url():
+    """PP-EXT-001."""
     assert resolve_base_url("123456") == "https://123456.plusportal.de"
 
 
@@ -50,6 +51,7 @@ def test_bare_hostname_gets_an_https_scheme():
 
 
 def test_plain_http_is_upgraded_so_credentials_are_never_sent_in_the_clear():
+    """PP-EXT-001."""
     assert resolve_base_url("http://123456.plusportal.de") == "https://123456.plusportal.de"
 
 
@@ -98,6 +100,7 @@ async def test_login_that_does_not_establish_a_session_is_an_authentication_erro
 
 @respx.mock
 async def test_an_account_without_the_energy_feature_is_rejected_early(client, session_payload):
+    """PP-EXT-015."""
     session_payload["features"] = []
     respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
@@ -139,6 +142,7 @@ async def test_a_valid_session_is_reused_across_calls(client, session_payload, o
 async def test_a_rejected_call_triggers_exactly_one_relogin_and_retry(
     client, session_payload, overview_payload
 ):
+    """PP-EXT-012."""
     login = respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
     overview = respx.get(OVERVIEW).mock(
@@ -158,6 +162,7 @@ async def test_a_rejected_call_triggers_exactly_one_relogin_and_retry(
 
 @respx.mock
 async def test_repeated_rejection_gives_up_instead_of_looping(client, session_payload):
+    """PP-EXT-012."""
     respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
     overview = respx.get(OVERVIEW).mock(return_value=httpx.Response(403))
@@ -174,6 +179,7 @@ async def test_repeated_rejection_gives_up_instead_of_looping(client, session_pa
 
 @respx.mock
 async def test_server_errors_surface_as_portal_unavailable(client, session_payload):
+    """PP-EXT-013."""
     respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
     overview = respx.get(OVERVIEW).mock(return_value=httpx.Response(500))
@@ -189,6 +195,7 @@ async def test_server_errors_surface_as_portal_unavailable(client, session_paylo
 async def test_a_transient_server_error_is_retried_successfully(
     client, session_payload, overview_payload
 ):
+    """PP-EXT-013."""
     respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
     respx.get(OVERVIEW).mock(side_effect=[httpx.Response(503), json_response("overview.json")])
@@ -208,7 +215,7 @@ async def test_network_failures_surface_as_portal_unavailable(client):
 
 @respx.mock
 async def test_a_non_json_body_surfaces_as_portal_unavailable(client, session_payload):
-    """An HTML error page from a reverse proxy must not look like empty data."""
+    """PP-EXT-014: An HTML error page from a reverse proxy must not look like empty data."""
     respx.post(LOGIN).mock(return_value=httpx.Response(200))
     respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
     respx.get(OVERVIEW).mock(return_value=httpx.Response(200, html="<html>oops</html>"))
@@ -257,4 +264,5 @@ async def test_an_injected_http_client_is_not_closed_by_us():
 
 
 def test_the_password_never_appears_in_the_representation():
+    """PP-SEC-002."""
     assert "s3cret" not in repr(PlusPortalClient(BASE, "user", "s3cret"))

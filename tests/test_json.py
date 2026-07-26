@@ -10,6 +10,7 @@ from pyplusportal.json import json_dumps, json_loads
 
 
 def test_fractional_numbers_decode_as_decimal():
+    """PP-EXT-009."""
     assert json_loads('{"v": 0.018321}')["v"] == Decimal("0.018321")
 
 

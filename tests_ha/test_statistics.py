@@ -75,7 +75,7 @@ def meter_data(meter_point, readings: list[Reading]) -> dict[int, MeterData]:
 
 
 def test_quarter_hours_are_summed_into_hourly_buckets():
-    """Home Assistant statistics are hourly; four readings make one bucket."""
+    """PP-HA-002: Home Assistant statistics are hourly; four readings make one bucket."""
     readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 8, kwh="0.25")
 
     totals = hourly_totals(readings)
@@ -86,6 +86,7 @@ def test_quarter_hours_are_summed_into_hourly_buckets():
 
 
 def test_bucket_keys_are_aligned_to_the_hour():
+    """PP-HA-002."""
     readings = quarter_hours(datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ), 4)
 
     for bucket in hourly_totals(readings):
@@ -93,7 +94,7 @@ def test_bucket_keys_are_aligned_to_the_hour():
 
 
 def test_provisional_values_are_left_out():
-    """They are replaced later; importing them invents consumption."""
+    """PP-HA-006: They are replaced later; importing them invents consumption."""
     billable = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
     provisional = quarter_hours(
         datetime(2026, 7, 20, 1, tzinfo=PORTAL_TZ), 4, kwh="9", state=ValueState.PRELIMINARY
@@ -135,6 +136,7 @@ def test_statistic_ids_are_namespaced_to_the_integration():
 async def test_energy_statistics_are_written_with_a_running_sum(
     recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
 ) -> None:
+    """PP-HA-001."""
     config_entry.add_to_hass(hass)
     readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 12, kwh="0.25")
 
@@ -148,7 +150,7 @@ async def test_energy_statistics_are_written_with_a_running_sum(
 async def test_a_second_import_continues_the_sum_instead_of_restarting(
     recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
 ) -> None:
-    """The rolling correction window overlaps what is already stored."""
+    """PP-HA-003: The rolling correction window overlaps what is already stored."""
     config_entry.add_to_hass(hass)
     first = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 8, kwh="0.25")
     later = quarter_hours(datetime(2026, 7, 20, 2, tzinfo=PORTAL_TZ), 8, kwh="0.25")
@@ -164,6 +166,7 @@ async def test_a_second_import_continues_the_sum_instead_of_restarting(
 async def test_a_corrected_value_replaces_the_old_one_without_duplicating_it(
     recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
 ) -> None:
+    """PP-HA-004."""
     config_entry.add_to_hass(hass)
     original = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
     corrected = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.5")
@@ -180,7 +183,7 @@ async def test_a_corrected_value_replaces_the_old_one_without_duplicating_it(
 async def test_re_importing_an_overlapping_window_does_not_double_count(
     recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
 ) -> None:
-    """The window's first hours already exist; their sums must not be added twice."""
+    """PP-HA-003: The window's first hours already exist; their sums must not be added twice."""
     config_entry.add_to_hass(hass)
     full = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 16, kwh="0.25")
     overlap = full[4:]  # hours 1..3, all of which were already imported
@@ -237,7 +240,7 @@ async def test_cost_statistics_price_each_hour(
 async def test_a_disabled_recorder_is_not_an_error(
     hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
 ) -> None:
-    """The recorder is optional in Home Assistant; consumption sensors still work."""
+    """PP-HA-007: The recorder is optional in Home Assistant; consumption sensors still work."""
     config_entry.add_to_hass(hass)
     readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
 

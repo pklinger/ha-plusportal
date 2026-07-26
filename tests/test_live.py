@@ -114,7 +114,7 @@ async def test_interval_and_daily_readings_agree_with_the_portals_own_total(
 
 
 async def test_a_complete_day_is_tiled_exactly_by_its_intervals(client: PlusPortalClient) -> None:
-    """No gaps and no overlaps, or the Energy dashboard would misreport."""
+    """PP-HA-005: No gaps and no overlaps, or the Energy dashboard would misreport."""
     day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():
@@ -161,7 +161,7 @@ async def test_the_portal_reports_which_values_are_billable(client: PlusPortalCl
 
 
 async def test_the_timezone_matches_what_the_portal_uses(client: PlusPortalClient) -> None:
-    """A mismatch would shift every value by an hour twice a year."""
+    """PP-EXT-007: A mismatch would shift every value by an hour twice a year."""
     day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():

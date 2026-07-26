@@ -119,7 +119,7 @@ async def test_data_quality_reports_the_share_of_final_values(
 async def test_no_cost_sensors_without_a_tariff(
     hass: HomeAssistant, config_entry: MockConfigEntry, portal
 ) -> None:
-    """Cost entities with no prices behind them would only show zeros."""
+    """PP-HA-011: Cost entities with no prices behind them would only show zeros."""
     await setup_entry(hass, config_entry)
 
     assert hass.states.get("sensor.1abc0000000000_projected_cost") is None
@@ -167,6 +167,7 @@ async def test_the_settlement_sensor_says_which_way_the_money_flows(
 async def test_all_entities_belong_to_one_device_per_meter(
     hass: HomeAssistant, config_entry: MockConfigEntry, portal
 ) -> None:
+    """PP-HA-010."""
     await setup_entry(hass, config_entry)
 
     devices = dr.async_get(hass).devices.get_devices_for_config_entry_id(config_entry.entry_id)
@@ -177,7 +178,7 @@ async def test_all_entities_belong_to_one_device_per_meter(
 async def test_entities_have_stable_unique_ids(
     hass: HomeAssistant, config_entry: MockConfigEntry, portal
 ) -> None:
-    """Without them, renaming the meter would orphan the history."""
+    """PP-HA-010: Without them, renaming the meter would orphan the history."""
     await setup_entry(hass, config_entry)
 
     registry = er.async_get(hass)
@@ -200,7 +201,7 @@ async def test_diagnostic_entities_are_categorised_as_such(
 async def test_missing_data_leaves_sensors_unknown_rather_than_zero(
     hass: HomeAssistant, config_entry: MockConfigEntry, meter_point, channel, session
 ) -> None:
-    """Reporting 0 kWh would look like real consumption of nothing."""
+    """PP-HA-008: Reporting 0 kWh would look like real consumption of nothing."""
     with patch(
         "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
     ) as factory:
@@ -231,7 +232,7 @@ async def test_the_entry_unloads_cleanly(
 async def test_diagnostics_never_leak_the_password(
     hass: HomeAssistant, config_entry: MockConfigEntry, portal
 ) -> None:
-    """Users paste this into bug reports."""
+    """PP-HA-013: Users paste this into bug reports."""
     from custom_components.plusportal.diagnostics import (
         async_get_config_entry_diagnostics,
     )

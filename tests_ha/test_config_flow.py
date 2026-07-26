@@ -126,7 +126,7 @@ async def test_an_unusable_tenant_is_reported_on_the_form(hass: HomeAssistant) -
 async def test_an_account_without_any_metering_point_is_rejected(
     hass: HomeAssistant, session
 ) -> None:
-    """Setting it up would silently produce an integration with no entities."""
+    """PP-HA-009: Setting it up would silently produce an integration with no entities."""
     with patch(
         "custom_components.plusportal.config_flow.PlusPortalClient", autospec=True
     ) as factory:
@@ -160,6 +160,7 @@ async def test_a_rejected_session_starts_a_reauth_flow(
 async def test_reauth_updates_the_password_without_a_second_entry(
     hass: HomeAssistant, config_entry, client_ok
 ) -> None:
+    """PP-HA-012."""
     config_entry.add_to_hass(hass)
     result = await config_entry.start_reauth_flow(hass)
 

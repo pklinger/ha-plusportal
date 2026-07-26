@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Refuses to push when the gates CI runs would fail.
+#
+# GitHub-side enforcement (a required-status-checks ruleset on main) needs a
+# public repository or GitHub Pro, and is blocked while this repo is private.
+# .github/rulesets/main.json holds it ready; scripts/apply-ruleset.sh applies it
+# the moment that changes. Until then this hook is what keeps main green.
+#
+# Bypass with --no-verify only when you intend to push something red, and say so.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+if ! ./.claude/hooks/gates.sh; then
+  cat >&2 <<'EOF'
+
+Push refused: the gates above are what CI runs, and they are not green.
+Fix them, or push with --no-verify if you deliberately want a red main.
+EOF
+  exit 1
+fi

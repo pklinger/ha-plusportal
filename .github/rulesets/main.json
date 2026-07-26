@@ -1,0 +1,23 @@
+{
+  "name": "main must stay green",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "Lint and types" },
+          { "context": "Library tests (Python 3.12)" },
+          { "context": "Library tests (Python 3.13)" },
+          { "context": "Home Assistant integration tests" },
+          { "context": "Home Assistant manifest" }
+        ]
+      }
+    }
+  ]
+}

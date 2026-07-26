@@ -94,6 +94,7 @@ def quarter_hours(day: date, count: int, kw: str = "0.2") -> list[tuple[datetime
 
 
 def test_an_interval_timestamp_is_the_end_so_the_start_is_shifted_back():
+    """PP-EXT-004."""
     end = datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ)
     raw = {"date": int(end.timestamp() * 1000), "value": Decimal("0.2"), "state": "W"}
 
@@ -105,7 +106,7 @@ def test_an_interval_timestamp_is_the_end_so_the_start_is_shifted_back():
 
 
 def test_average_power_is_converted_to_energy_over_the_interval():
-    """2 kW held for a quarter of an hour is 0.5 kWh."""
+    """PP-EXT-003: 2 kW held for a quarter of an hour is 0.5 kWh."""
     end = datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ)
     raw = {"date": int(end.timestamp() * 1000), "value": Decimal("2"), "state": "W"}
 
@@ -116,6 +117,7 @@ def test_average_power_is_converted_to_energy_over_the_interval():
 
 
 def test_the_conversion_stays_exact_rather_than_rounding():
+    """PP-EXT-009."""
     end = datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ)
     raw = {"date": int(end.timestamp() * 1000), "value": Decimal("0.013"), "state": "W"}
 
@@ -125,6 +127,7 @@ def test_the_conversion_stays_exact_rather_than_rounding():
 
 
 def test_interval_readings_keep_their_own_quality_flag():
+    """PP-EXT-008."""
     end = datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ)
     raw = {"date": int(end.timestamp() * 1000), "value": Decimal("1"), "state": "V"}
 
@@ -135,6 +138,7 @@ def test_interval_readings_keep_their_own_quality_flag():
 
 
 def test_daily_readings_are_labelled_by_their_start_and_last_a_day():
+    """PP-EXT-006."""
     raw = {"date": 1782856800000, "value": Decimal("0.0312"), "unitA": "kWh", "state": "W"}
 
     reading = Reading.from_daily_api(raw, obis="1-0:1.8.0")
@@ -175,6 +179,7 @@ async def test_interval_energy_adds_up_to_the_daily_figure(respx_mock, client):
 
 @respx.mock(assert_all_called=False)
 async def test_the_request_asks_for_the_power_series(respx_mock, client):
+    """PP-EXT-003, PP-EXT-007."""
     route = respx_mock.route(DIAGRAM_RESULT).mock(
         return_value=power_payload(quarter_hours(date(2026, 7, 20), 4))
     )
@@ -206,7 +211,7 @@ async def test_intervals_outside_the_requested_range_are_dropped(respx_mock, cli
 
 @respx.mock(assert_all_called=False)
 async def test_the_interval_length_is_derived_from_the_data(respx_mock, client):
-    """Half-hourly meters exist; the spacing must not be hard-coded to 15 minutes."""
+    """PP-EXT-005: Half-hourly meters exist; the spacing must not be hard-coded to 15 minutes."""
     midnight = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
     points = [(midnight + timedelta(minutes=30 * (i + 1)), "2", "W") for i in range(48)]
     respx_mock.route(DIAGRAM_RESULT).mock(return_value=power_payload(points))
@@ -220,6 +225,7 @@ async def test_the_interval_length_is_derived_from_the_data(respx_mock, client):
 
 @respx.mock(assert_all_called=False)
 async def test_a_single_interval_falls_back_to_the_standard_quarter_hour(respx_mock, client):
+    """PP-EXT-005."""
     respx_mock.route(DIAGRAM_RESULT).mock(
         return_value=power_payload(quarter_hours(date(2026, 7, 20), 1))
     )

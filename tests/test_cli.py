@@ -119,6 +119,7 @@ def test_an_inverted_range_is_reported_without_a_traceback(portal, credentials, 
 
 
 def test_missing_credentials_are_reported_clearly(monkeypatch, capsys):
+    """PP-SEC-002."""
     for name in ("PLUSPORTAL_USERNAME", "PLUSPORTAL_PASSWORD", "PLUSPORTAL_TENANT"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("PLUSPORTAL_NO_DOTENV", "1")
@@ -152,6 +153,7 @@ def test_an_unreachable_portal_exits_distinctly(credentials, capsys):
 
 
 def test_the_password_is_never_printed(portal, credentials, capsys):
+    """PP-SEC-002."""
     main(["meters"])
     main(["overview"])
 
@@ -207,6 +209,7 @@ def test_the_environment_wins_over_the_env_file(tmp_path, monkeypatch, portal, c
 
 
 def test_redaction_removes_identifying_values():
+    """PP-SEC-001, PP-SEC-003."""
     payload = {
         "sessionId": "deadbeef",
         "username": "1000000000",
@@ -263,6 +266,7 @@ def test_probe_writes_fixture_files(portal, credentials, tmp_path, capsys):
 
 
 def test_probe_output_is_redacted_and_valid_json(portal, credentials, tmp_path):
+    """PP-SEC-003."""
     main(["probe", "--out", str(tmp_path)])
 
     session = json.loads((tmp_path / "session.json").read_text())
