@@ -46,6 +46,10 @@ The `Release` workflow then verifies the tag matches the project version, runs b
 builds, publishes to PyPI and creates the GitHub release. A tag that disagrees with the code
 fails before anything is published.
 
+Building and publishing happen in one job on purpose. Passing `dist/` between jobs needs two
+more actions, and this workflow gets exactly one attempt per tag — a version cannot be
+re-published to PyPI.
+
 ## Getting listed in HACS
 
 Users can install straight away by adding the repository as a *custom repository* in HACS —

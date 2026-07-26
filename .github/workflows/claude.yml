@@ -34,11 +34,11 @@ jobs:
     steps:
       # Checked out so CLAUDE.md, .claude/ and docs/specs/ are available —
       # they are what keep the agent's changes consistent with the project.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
       - run: uv sync --group ha
