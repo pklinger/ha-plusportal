@@ -1,0 +1,40 @@
+[
+  {
+    "id": 1000,
+    "data": [
+      {
+        "id": 1,
+        "thisMonthSum": 0.757899,
+        "thisYearSum": null,
+        "prevMonthSum": 0.587,
+        "thisMonthAvg": 0.031579125,
+        "prevMonthAvg": 0.04515384615384615,
+        "firstValue": null,
+        "lastValue": 0.0,
+        "dtFirstValue": 1781733600000,
+        "dtLastValue": 1784934000000,
+        "unit": "kWh",
+        "kz": {
+          "bez": "Wirk Bezug T0 akt",
+          "einheit": "kWh",
+          "isDefault": 0,
+          "kennzahl": "1-0:1.8.0",
+          "kenzgrpBez": "",
+          "kenzgrpnr": 0,
+          "portalAnz": null,
+          "portalBez": "Stromverbrauch",
+          "portalMax": 100000,
+          "portalMin": null,
+          "portalUmr": null,
+          "portalVisu": null,
+          "prio": 0
+        },
+        "division": null,
+        "intervalStartms": 1784934000000,
+        "thisMonthSumTitle": "thisMonthSum",
+        "thisYearSumTitle": "thisYearSum",
+        "prevMonthSumTitle": "prevMonthSum"
+      }
+    ]
+  }
+]

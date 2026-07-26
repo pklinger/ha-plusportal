@@ -1,0 +1,192 @@
+[
+  {
+    "type": "gwa",
+    "userItems": [
+      {
+        "appFeatures": [],
+        "appID": null,
+        "bez": "1ABC0000000000*",
+        "category": "Electricity",
+        "deviceNr": -1904067443,
+        "directions": [
+          {
+            "bez": "Stromverbrauch",
+            "id": 33334,
+            "kennzahl": {
+              "bez": "1",
+              "einheit": "kwh",
+              "isDefault": 0,
+              "kennzahl": "1-0:1.8.0",
+              "kenzgrpBez": "",
+              "kenzgrpnr": 0,
+              "portalAnz": null,
+              "portalBez": null,
+              "portalMax": 100000,
+              "portalMin": null,
+              "portalUmr": null,
+              "portalVisu": null,
+              "prio": 0
+            },
+            "lines": [
+              {
+                "@class": "de.meteringservice.shared.dtos.energydataview.UserItemLineRLM",
+                "appFeatures": [],
+                "battery": null,
+                "bez": "Test",
+                "branch": null,
+                "id": 6532,
+                "lastUpdate": null,
+                "lastValue": null,
+                "mapColour": null,
+                "modellNr": null,
+                "obis": {
+                  "bez": "1",
+                  "einheit": "kwh",
+                  "isDefault": 0,
+                  "kennzahl": "1-0:1.8.0",
+                  "kenzgrpBez": "",
+                  "kenzgrpnr": 0,
+                  "portalAnz": null,
+                  "portalBez": null,
+                  "portalMax": 100000,
+                  "portalMin": null,
+                  "portalUmr": null,
+                  "portalVisu": null,
+                  "prio": 0
+                },
+                "sublocs": [],
+                "thisMonthSum": null,
+                "type": "1",
+                "userItemDevice": {
+                  "deviceNr": 6532,
+                  "deviceType": "taf"
+                },
+                "malo": null,
+                "gid": null,
+                "active": true
+              },
+              {
+                "@class": "de.meteringservice.shared.dtos.energydataview.UserItemLineRLM",
+                "appFeatures": [],
+                "battery": null,
+                "bez": "Test",
+                "branch": null,
+                "id": 55788,
+                "lastUpdate": null,
+                "lastValue": null,
+                "mapColour": null,
+                "modellNr": null,
+                "obis": {
+                  "bez": "1",
+                  "einheit": "kwh",
+                  "isDefault": 0,
+                  "kennzahl": "1-0:1.8.0",
+                  "kenzgrpBez": "",
+                  "kenzgrpnr": 0,
+                  "portalAnz": null,
+                  "portalBez": null,
+                  "portalMax": 100000,
+                  "portalMin": null,
+                  "portalUmr": null,
+                  "portalVisu": null,
+                  "prio": 0
+                },
+                "sublocs": [],
+                "thisMonthSum": null,
+                "type": "1",
+                "userItemDevice": {
+                  "deviceNr": 55788,
+                  "deviceType": "taf"
+                },
+                "malo": null,
+                "gid": null,
+                "active": true
+              },
+              {
+                "@class": "de.meteringservice.shared.dtos.energydataview.UserItemLineRLM",
+                "appFeatures": [],
+                "battery": null,
+                "bez": "Test",
+                "branch": null,
+                "id": 55789,
+                "lastUpdate": null,
+                "lastValue": null,
+                "mapColour": null,
+                "modellNr": null,
+                "obis": {
+                  "bez": "7",
+                  "einheit": "kwh",
+                  "isDefault": 0,
+                  "kennzahl": "1-0:1.8.0",
+                  "kenzgrpBez": "",
+                  "kenzgrpnr": 0,
+                  "portalAnz": null,
+                  "portalBez": null,
+                  "portalMax": 100000,
+                  "portalMin": null,
+                  "portalUmr": null,
+                  "portalVisu": null,
+                  "prio": 0
+                },
+                "sublocs": [],
+                "thisMonthSum": null,
+                "type": "7",
+                "userItemDevice": {
+                  "deviceNr": 55789,
+                  "deviceType": "taf"
+                },
+                "malo": null,
+                "gid": null,
+                "active": true
+              }
+            ],
+            "devices": []
+          }
+        ],
+        "id": 1000,
+        "lines": [],
+        "ppIcon": "",
+        "sublocs": [],
+        "tafs": [
+          {
+            "gwatafbez": "07: Zählerstandsgangmessung",
+            "gwatafnr": 55789,
+            "gwataftype": 7,
+            "kennzahl": [
+              "1-0:1.8.0"
+            ],
+            "status": 1,
+            "mieterstrom": false,
+            "bis": 1785016799999
+          },
+          {
+            "gwatafbez": "01: Datensparsamer Tarif",
+            "gwatafnr": 6532,
+            "gwataftype": 1,
+            "kennzahl": [
+              "1-0:1.8.0"
+            ],
+            "status": 1,
+            "mieterstrom": false,
+            "bis": 1785016799999
+          },
+          {
+            "gwatafbez": "01: Datensparsamer Tarif",
+            "gwatafnr": 55788,
+            "gwataftype": 1,
+            "kennzahl": [
+              "1-0:1.8.0"
+            ],
+            "status": 0,
+            "mieterstrom": false,
+            "bis": 1785016799999
+          }
+        ],
+        "typeId": 1,
+        "zpBez": null,
+        "sourceType": "ROBOTRON"
+      }
+    ],
+    "deviceCount": null
+  }
+]

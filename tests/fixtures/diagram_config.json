@@ -1,0 +1,45 @@
+[
+  {
+    "begin": 1781733600000,
+    "defaultDiagramType": "consumption",
+    "defaultPeriodType": "MONTH",
+    "end": 1784982764255,
+    "kz": [
+      {
+        "id": 0,
+        "diagramType": [
+          {
+            "bez": "consumption",
+            "chartType": "Bar",
+            "comparable": false,
+            "showStatistic": true,
+            "stackable": false,
+            "unit": "kWh"
+          },
+          {
+            "bez": "power",
+            "chartType": "Line",
+            "comparable": false,
+            "showStatistic": true,
+            "stackable": false,
+            "unit": "kW"
+          }
+        ],
+        "bez": "Stromverbrauch",
+        "obis": "1-0:1.8.0",
+        "unit": "kWh",
+        "lastUpdate": null,
+        "statisticType": null,
+        "prioValue": 0,
+        "prioKennz": true,
+        "wertevorrat": false
+      }
+    ],
+    "lineNr": 145,
+    "periodType": [
+      "DAY"
+    ],
+    "type": "LPSP",
+    "autoScale": false
+  }
+]

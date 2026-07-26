@@ -1,0 +1,34 @@
+{
+  "webuUser": false,
+  "id": 10001,
+  "username": "1000000000",
+  "firstName": null,
+  "surName": null,
+  "bez1": null,
+  "bez2": null,
+  "sessionId": "0000000000000000000000000000000000000000000000000000000000000000",
+  "loginValidFrom": 1784982546113,
+  "loginValidTo": 1784986539957,
+  "userGroups": [
+    {
+      "id": 10,
+      "label": "Energy Data View Benutzer",
+      "identifier": "energy-data-view-users"
+    }
+  ],
+  "smartHome": false,
+  "energyDataView": false,
+  "komdsl": false,
+  "managerPrivileges": [],
+  "features": [
+    {
+      "id": 3,
+      "featureTag": "energydataview",
+      "labelTag": "lblEnergyDataview",
+      "descTag1": null,
+      "descTag2": null,
+      "descTag3": null,
+      "descTag4": null
+    }
+  ]
+}

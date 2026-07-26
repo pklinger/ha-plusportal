@@ -1,0 +1,608 @@
+[
+  {
+    "bez": null,
+    "bezA": null,
+    "bezB": null,
+    "compare": null,
+    "config": [],
+    "currentDiagramPeriod": "MONTH",
+    "currentDiagramType": "consumption",
+    "data": [
+      {
+        "bez": "Stromverbrauch",
+        "values": [
+          {
+            "date": 1782856800000,
+            "valueA": 0.0312,
+            "valueB": null,
+            "time": 1782856800000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0312,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1782943200000,
+            "valueA": 0.0188,
+            "valueB": null,
+            "time": 1782943200000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0188,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783029600000,
+            "valueA": 0.0277,
+            "valueB": null,
+            "time": 1783029600000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0277,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783116000000,
+            "valueA": 0.0202,
+            "valueB": null,
+            "time": 1783116000000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0202,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783202400000,
+            "valueA": 0.0269,
+            "valueB": null,
+            "time": 1783202400000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0269,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783288800000,
+            "valueA": 0.0304,
+            "valueB": null,
+            "time": 1783288800000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0304,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783375200000,
+            "valueA": 0.0251,
+            "valueB": null,
+            "time": 1783375200000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0251,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783461600000,
+            "valueA": 0.0307,
+            "valueB": null,
+            "time": 1783461600000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "E",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0307,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783548000000,
+            "valueA": 0.0317,
+            "valueB": null,
+            "time": 1783548000000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0317,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783634400000,
+            "valueA": 0.0445,
+            "valueB": null,
+            "time": 1783634400000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0445,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783720800000,
+            "valueA": 0.027,
+            "valueB": null,
+            "time": 1783720800000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.027,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783807200000,
+            "valueA": 0.0353,
+            "valueB": null,
+            "time": 1783807200000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0353,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783893600000,
+            "valueA": 0.0376,
+            "valueB": null,
+            "time": 1783893600000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0376,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1783980000000,
+            "valueA": 0.0285,
+            "valueB": null,
+            "time": 1783980000000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0285,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784066400000,
+            "valueA": 0.0387,
+            "valueB": null,
+            "time": 1784066400000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0387,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784152800000,
+            "valueA": 0.0433,
+            "valueB": null,
+            "time": 1784152800000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0433,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784239200000,
+            "valueA": 0.0445,
+            "valueB": null,
+            "time": 1784239200000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0445,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784325600000,
+            "valueA": 0.0304,
+            "valueB": null,
+            "time": 1784325600000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0304,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784412000000,
+            "valueA": 0.0327,
+            "valueB": null,
+            "time": 1784412000000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0327,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784498400000,
+            "valueA": 0.0351,
+            "valueB": null,
+            "time": 1784498400000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0351,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784584800000,
+            "valueA": 0.0306,
+            "valueB": null,
+            "time": 1784584800000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0306,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784671200000,
+            "valueA": 0.018321,
+            "valueB": null,
+            "time": 1784671200000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "E",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.018321,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784757600000,
+            "valueA": 0.030978,
+            "valueB": null,
+            "time": 1784757600000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "E",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.030978,
+            "bez": "Stromverbrauch"
+          },
+          {
+            "date": 1784844000000,
+            "valueA": 0.0377,
+            "valueB": null,
+            "time": 1784844000000,
+            "forDiagram": true,
+            "bezA": "Stromverbrauch",
+            "bezB": null,
+            "unitA": "kWh",
+            "unitB": null,
+            "range": [
+              0,
+              0
+            ],
+            "state": "W",
+            "category": null,
+            "datacolour": "N/A",
+            "value": 0.0377,
+            "bez": "Stromverbrauch"
+          }
+        ],
+        "unit": "kWh",
+        "obis": "1-0:1.8.0",
+        "visible": true
+      }
+    ],
+    "endDate": 1785542399999,
+    "kz": "1-0:1.8.0",
+    "lineNr": null,
+    "maxForDiagram": [],
+    "mewlNr": null,
+    "startDate": 1782864900000,
+    "statistic": [
+      {
+        "average": 0.031579125,
+        "avgDataColor": null,
+        "bez": "Stromverbrauch",
+        "lastPeriodsAverage": 0.0,
+        "lastPeriodsSum": 0.0,
+        "max1": {
+          "date": 1783641600000,
+          "valueA": 0.0445,
+          "valueB": null,
+          "time": 1783641600000,
+          "forDiagram": true,
+          "bezA": "max1",
+          "bezB": null,
+          "unitA": "kWh",
+          "unitB": null,
+          "range": [
+            0,
+            0
+          ],
+          "state": "W",
+          "category": null,
+          "datacolour": "N/A",
+          "value": 0.0445,
+          "bez": "max1"
+        },
+        "max2": {
+          "date": 1784246400000,
+          "valueA": 0.0445,
+          "valueB": null,
+          "time": 1784246400000,
+          "forDiagram": true,
+          "bezA": "max2",
+          "bezB": null,
+          "unitA": "kWh",
+          "unitB": null,
+          "range": [
+            0,
+            0
+          ],
+          "state": "W",
+          "category": null,
+          "datacolour": "N/A",
+          "value": 0.0445,
+          "bez": "max2"
+        },
+        "max3": {
+          "date": 1784160000000,
+          "valueA": 0.0433,
+          "valueB": null,
+          "time": 1784160000000,
+          "forDiagram": true,
+          "bezA": "max3",
+          "bezB": null,
+          "unitA": "kWh",
+          "unitB": null,
+          "range": [
+            0,
+            0
+          ],
+          "state": "W",
+          "category": null,
+          "datacolour": "N/A",
+          "value": 0.0433,
+          "bez": "max3"
+        },
+        "max4": null,
+        "min": {
+          "date": 1784678400000,
+          "valueA": 0.018321,
+          "valueB": null,
+          "time": 1784678400000,
+          "forDiagram": true,
+          "bezA": "Minimum",
+          "bezB": null,
+          "unitA": "kWh",
+          "unitB": null,
+          "range": [
+            0,
+            0
+          ],
+          "state": "E",
+          "category": null,
+          "datacolour": "N/A",
+          "value": 0.018321,
+          "bez": "Minimum"
+        },
+        "sum": 0.757899,
+        "surveyStat": [],
+        "visible": false
+      }
+    ],
+    "unit": "kWh",
+    "unitA": null,
+    "unitB": null,
+    "min": [],
+    "max": [],
+    "range": [],
+    "lpBez": null,
+    "lpspNr": null
+  }
+]
