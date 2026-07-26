@@ -55,6 +55,7 @@ async def test_valid_credentials_create_an_entry(hass: HomeAssistant, client_ok)
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -68,7 +69,8 @@ async def test_the_entry_is_keyed_on_tenant_and_user(hass: HomeAssistant, client
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
 
     entry = hass.config_entries.async_entries(DOMAIN)[0]
@@ -81,6 +83,8 @@ async def test_the_same_account_cannot_be_added_twice(hass: HomeAssistant, clien
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
         result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+        if result["type"] is FlowResultType.FORM:
+            result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
@@ -219,3 +223,67 @@ async def test_the_tariff_is_optional(hass: HomeAssistant, config_entry) -> None
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+# ------------------------------------------------------- tariff at setup
+
+
+async def test_setup_offers_the_tariff_before_finishing(hass: HomeAssistant, client_ok) -> None:
+    """PP-HA-023: prices asked for once, not hunted for afterwards.
+
+    Entering credentials and then discovering that cost needs a separate trip
+    into an options dialog is a poor first run.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "tariff"
+
+
+async def test_the_tariff_step_stores_prices_as_options(hass: HomeAssistant, client_ok) -> None:
+    """PP-HA-023: the same place the options flow writes, so both agree."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_ENERGY_PRICE: 34.5, CONF_BASE_PRICE: 120.0, CONF_MONTHLY_ADVANCE: 50.0},
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"][CONF_ENERGY_PRICE] == 34.5
+    assert result["data"][CONF_TENANT] == "123456"
+
+
+async def test_the_tariff_step_can_be_skipped(hass: HomeAssistant, client_ok) -> None:
+    """PP-HA-023: consumption tracking must not require prices."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_ENERGY_PRICE not in result["options"], "no price means no cost"
+
+
+async def test_an_invalid_tariff_is_rejected_during_setup_too(
+    hass: HomeAssistant, client_ok
+) -> None:
+    """PP-HA-023: the same validation as the options flow, not a weaker one."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_ENERGY_PRICE: 34.5, CONF_BILLING_YEAR_START: "02-29"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_BILLING_YEAR_START: "invalid_billing_year_start"}

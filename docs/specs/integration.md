@@ -152,3 +152,11 @@ configured.
 *Why:* every cost figure is measured against this period, and it is otherwise only visible
 by opening a sensor's attributes one at a time. As dates, Home Assistant formats them in the
 user's locale.
+
+### PP-HA-023 — The tariff is offered during setup
+A second, entirely optional step after the credentials, writing to the same options the
+configure dialog edits and validated by the same rules.
+
+*Why:* prices were only reachable after setup, through a dialog people had to know existed.
+Asking once, while the user is already there, is the difference between cost figures
+appearing and a tariff being entered and then apparently ignored.

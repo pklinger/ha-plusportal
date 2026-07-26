@@ -16,6 +16,17 @@
         "data": {
           "password": "Passwort"
         }
+      },
+      "tariff": {
+        "title": "Tarif",
+        "description": "Optional. Ohne Preise wird nur der Verbrauch erfasst, mit ihnen zusätzlich Kosten und Abrechnungsprognose. Änderbar ist das jederzeit unter Konfigurieren.",
+        "data": {
+          "energy_price_ct_per_kwh": "Arbeitspreis (ct/kWh)",
+          "base_price_eur_per_year": "Grundpreis (EUR/Jahr)",
+          "monthly_advance_eur": "Monatlicher Abschlag (EUR)",
+          "billing_year_start": "Abrechnungsjahr beginnt (MM-TT)",
+          "scan_interval_hours": "Abrufintervall (Stunden)"
+        }
       }
     },
     "error": {
@@ -23,7 +34,9 @@
       "cannot_connect": "Das Portal ist nicht erreichbar.",
       "invalid_tenant": "Keine Mandantennummer (z. B. 123456) und keine Portaladresse.",
       "no_meters": "Zu diesem Konto gehören keine Zählpunkte — es gäbe nichts anzuzeigen.",
-      "unknown": "Unerwarteter Fehler. Details stehen im Log."
+      "unknown": "Unerwarteter Fehler. Details stehen im Log.",
+      "invalid_billing_year_start": "Bitte als MM-TT angeben, z. B. 01-01. Das Datum muss es in jedem Jahr geben, 02-29 ist deshalb nicht möglich.",
+      "invalid_energy_price_ct_per_kwh": "Preise können nicht negativ sein."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
