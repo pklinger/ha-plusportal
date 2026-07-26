@@ -1,4 +1,6 @@
 {
+  "domain": "plusportal",
+  "name": "PlusPortal",
   "after_dependencies": [
     "recorder"
   ],
@@ -7,11 +9,9 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/pklinger/ha-plusportal",
-  "domain": "plusportal",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/pklinger/ha-plusportal/issues",
-  "name": "PlusPortal",
   "requirements": [
     "pyplusportal==0.1.0"
   ],

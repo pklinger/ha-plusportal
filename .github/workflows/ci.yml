@@ -64,6 +64,11 @@ jobs:
 
   hacs:
     name: HACS validation
+    # HACS fetches hacs.json and manifest.json without authentication, which
+    # 404s on a private repository — the check reports them as invalid rather
+    # than unreachable. It runs as soon as the repository is public; skipping
+    # is honest, marking it continue-on-error would hide real failures later.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
