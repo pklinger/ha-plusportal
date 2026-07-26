@@ -57,7 +57,8 @@ def tariff_from_options(options: Mapping[str, Any]) -> Tariff | None:
 
     try:
         return Tariff(
-            energy_price_ct_per_kwh=Decimal(str(energy_price)),
+            # The library models the price in cents; the option is euro.
+            energy_price_ct_per_kwh=Decimal(str(energy_price)) * 100,
             base_price_eur_per_year=Decimal(str(options.get(CONF_BASE_PRICE) or 0)),
             monthly_advance_eur=(
                 Decimal(str(options[CONF_MONTHLY_ADVANCE]))

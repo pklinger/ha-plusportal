@@ -8,7 +8,7 @@ from typing import Final
 DOMAIN: Final = "plusportal"
 
 CONF_TENANT: Final = "tenant"
-CONF_ENERGY_PRICE: Final = "energy_price_ct_per_kwh"
+CONF_ENERGY_PRICE: Final = "energy_price_eur_per_kwh"
 CONF_BASE_PRICE: Final = "base_price_eur_per_year"
 CONF_MONTHLY_ADVANCE: Final = "monthly_advance_eur"
 CONF_BILLING_YEAR_START: Final = "billing_year_start"

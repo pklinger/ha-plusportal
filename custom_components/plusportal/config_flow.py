@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
 import voluptuous as vol
 from homeassistant.config_entries import (
@@ -62,8 +62,12 @@ STEP_REAUTH_SCHEMA = vol.Schema(
 )
 
 
-def _price_selector(maximum: float, step: float = 0.01) -> NumberSelector:
-    """Build a number selector for a monetary field."""
+def _price_selector(maximum: float, step: float | Literal["any"] = 0.01) -> NumberSelector:
+    """Build a number selector for a monetary field.
+
+    A price per kWh needs more than two decimals, and Home Assistant's selector
+    rejects a step that small — "any" is its way of saying free-form.
+    """
     return NumberSelector(
         NumberSelectorConfig(min=0, max=maximum, step=step, mode=NumberSelectorMode.BOX)
     )
@@ -80,7 +84,7 @@ def tariff_schema(current: Mapping[str, Any]) -> vol.Schema:
             vol.Optional(
                 CONF_ENERGY_PRICE,
                 description={"suggested_value": current.get(CONF_ENERGY_PRICE)},
-            ): _price_selector(200.0),
+            ): _price_selector(5.0, step="any"),
             vol.Optional(
                 CONF_BASE_PRICE,
                 description={"suggested_value": current.get(CONF_BASE_PRICE)},

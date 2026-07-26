@@ -184,3 +184,12 @@ show a grid draw that includes energy the household exported — silently, as a 
 merely looks high. Pricing an export series at the import rate would compound it. The
 sensors and every cost figure describe what was drawn from the grid, so they read the
 billed channel alone.
+
+### PP-HA-027 — The energy price is entered in EUR/kWh
+Not in cents, with free-form decimals.
+
+*Why:* bills quote cents, but Home Assistant works in euro everywhere else and the price
+entity already reports EUR/kWh. Asking for cents made the input the only place in the
+integration using a different unit, and the conversion an invisible step for anyone checking
+a figure by hand. The CLI's `PLUSPORTAL_ENERGY_PRICE_CT` keeps its unit: it is a separate
+surface with its own documented name, and renaming it would break anyone's `.env`.

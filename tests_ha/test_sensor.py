@@ -137,7 +137,7 @@ async def test_cost_sensors_appear_once_a_tariff_is_configured(
         unique_id="123456-10001",
         data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
         options={
-            CONF_ENERGY_PRICE: 34.5,
+            CONF_ENERGY_PRICE: 0.345,
             CONF_BASE_PRICE: 120.0,
             CONF_MONTHLY_ADVANCE: 50.0,
         },
@@ -157,7 +157,7 @@ async def test_the_settlement_sensor_says_which_way_the_money_flows(
         domain=DOMAIN,
         unique_id="123456-10001",
         data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
-        options={CONF_ENERGY_PRICE: 1.0, CONF_MONTHLY_ADVANCE: 500.0},
+        options={CONF_ENERGY_PRICE: 0.01, CONF_MONTHLY_ADVANCE: 500.0},
     )
     await setup_entry(hass, entry)
 
@@ -274,7 +274,7 @@ def tariff_entry() -> MockConfigEntry:
         unique_id="123456-10001",
         data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
         options={
-            CONF_ENERGY_PRICE: 35.0,
+            CONF_ENERGY_PRICE: 0.35,
             CONF_BASE_PRICE: 12.0,
             CONF_MONTHLY_ADVANCE: 80.0,
         },

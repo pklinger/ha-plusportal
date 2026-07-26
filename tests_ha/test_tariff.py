@@ -7,6 +7,8 @@ that silently becomes `None` removes every cost sensor with no error anywhere.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from custom_components.plusportal.const import (
@@ -50,7 +52,7 @@ def test_a_tariff_is_built_from_complete_options() -> None:
     """PP-HA-023."""
     tariff = tariff_from_options(
         {
-            CONF_ENERGY_PRICE: 34.5,
+            CONF_ENERGY_PRICE: 0.345,
             CONF_BASE_PRICE: 120.0,
             CONF_MONTHLY_ADVANCE: 50.0,
             CONF_BILLING_YEAR_START: "07-01",
@@ -66,9 +68,9 @@ def test_a_tariff_is_built_from_complete_options() -> None:
     "options",
     [
         {CONF_ENERGY_PRICE: "not a number"},
-        {CONF_ENERGY_PRICE: 34.5, CONF_BILLING_YEAR_START: "02-29"},
-        {CONF_ENERGY_PRICE: 34.5, CONF_BASE_PRICE: "nonsense"},
-        {CONF_ENERGY_PRICE: -5},
+        {CONF_ENERGY_PRICE: 0.345, CONF_BILLING_YEAR_START: "02-29"},
+        {CONF_ENERGY_PRICE: 0.345, CONF_BASE_PRICE: "nonsense"},
+        {CONF_ENERGY_PRICE: -0.05},
     ],
 )
 def test_unusable_options_yield_no_tariff_rather_than_raising(options: dict) -> None:
@@ -82,7 +84,20 @@ def test_unusable_options_yield_no_tariff_rather_than_raising(options: dict) -> 
 
 def test_an_absent_advance_stays_absent() -> None:
     """PP-COST-008: zero would read as "nothing to pay"."""
-    tariff = tariff_from_options({CONF_ENERGY_PRICE: 34.5})
+    tariff = tariff_from_options({CONF_ENERGY_PRICE: 0.345})
 
     assert tariff is not None
     assert tariff.monthly_advance_eur is None
+
+
+def test_the_energy_price_is_entered_in_euro_per_kwh() -> None:
+    """PP-HA-027: the unit the price is displayed and calculated in.
+
+    Bills quote cents, but Home Assistant works in euro throughout and the
+    price entity already reports EUR/kWh. Asking for cents made the input the
+    only place in the integration using a different unit.
+    """
+    tariff = tariff_from_options({CONF_ENERGY_PRICE: 0.35})
+
+    assert tariff is not None
+    assert tariff.energy_price_eur_per_kwh == Decimal("0.35")
