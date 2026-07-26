@@ -103,6 +103,13 @@ lives in `.dev/`, which is gitignored: once configured it holds your portal pass
 Requires Home Assistant **2026.2.0** or newer — the integration uses statistics APIs that
 changed in that release.
 
+The interface is available in English and German and follows whatever language Home
+Assistant is set to; there is nothing to choose. Field and entity names in this document are
+the English ones, so a German instance will show their German equivalents instead
+(*Energy price* → *Arbeitspreis*, *Standing charge, accrued* → *Grundpreis kumuliert*).
+Entity ids stay English in both, so templates and automations keep working if the language
+changes.
+
 ### Through HACS
 
 1. In Home Assistant, open **HACS → ⋮ → Custom repositories**.
@@ -133,11 +140,11 @@ The tariff is optional. Without it you get consumption; with it you also get cos
 
 | Option | Meaning |
 |---|---|
-| Arbeitspreis (ct/kWh) | required for any cost figure |
-| Grundpreis (EUR/year) | apportioned across the billing year |
-| Monatlicher Abschlag (EUR) | needed for the settlement forecast |
-| Beginn Abrechnungsjahr (MM-DD) | defaults to 01-01 |
-| Abrufintervall (hours) | defaults to 6; the portal publishes once a day |
+| Energy price (ct/kWh) | required for any cost figure |
+| Standing charge (EUR/year) | apportioned across the billing year |
+| Monthly advance payment (EUR) | needed for the settlement forecast |
+| Billing year starts (MM-DD) | defaults to 01-01 |
+| Update interval (hours) | defaults to 6; the portal publishes once a day |
 
 Per metering point you get consumption for the last day, the current and previous month,
 when the portal last had a value, and what share of the data is final. With a tariff, also
@@ -152,7 +159,7 @@ state-based sensor would book all of it at the moment of import.
 
 Under **Settings → Dashboards → Energy → Grid consumption**, pick the statistic named after
 your meter with `plusportal` underneath it (a chart icon, not a lightning bolt). For cost,
-choose *Use an entity with the current price* and select **Arbeitspreis**.
+choose *Use an entity with the current price* and select **Energy price**.
 
 Quarter-hourly readings are aggregated into hourly statistics. Provisional values are left
 out and substitute values are included, which is the rule the supplier bills by, and each

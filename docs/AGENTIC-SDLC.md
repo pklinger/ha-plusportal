@@ -22,12 +22,16 @@ issue  →  spec  →  failing test  →  code  →  gates  →  review  →  me
    five checks CI runs.
 5. **Review.** Every pull request gets an automated review against the project's own
    standards. Advisory: it comments, the gates decide.
-6. **Merge, then release.** See `.claude/skills/release/SKILL.md`.
+6. **Pull request.** Every change, without exception. The branch prefix states the change
+   type and determines which part of the version moves; see CLAUDE.md.
+7. **Merge, then release.** See `.claude/skills/release/SKILL.md`.
 
 ## What is enforced, and by what
 
 | Rule | Enforced by | Where it runs |
 |---|---|---|
+| main takes pull requests only | GitHub ruleset, `.claude/hooks/no-direct-push-to-main.sh` | GitHub and agent |
+| Shipped changes bump the version | `scripts/check_version_bump.py` | CI, on pull requests |
 | Every requirement has a test; every cited requirement exists | `tests/test_traceability.py` | gates, CI |
 | Versions in pyproject, manifest and the pin agree | `tests/test_packaging.py` | gates, CI |
 | No account data in a commit | `.claude/hooks/no-account-data.sh` | agent, pre-commit |

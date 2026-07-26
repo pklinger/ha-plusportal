@@ -93,3 +93,32 @@ def test_translations_cover_every_key_the_ui_declares():
             (MANIFEST.parent / "translations" / f"{language}.json").read_text(encoding="utf-8")
         )
         assert leaves(translation) == leaves(base), f"{language}.json is out of sync"
+
+
+def test_german_is_actually_translated_not_copied():
+    """PP-SEC-006: identical key sets prove nothing about the text itself.
+
+    A translation file copied from English passes a key-parity check while
+    leaving the interface in the wrong language.
+    """
+    base = MANIFEST.parent / "translations"
+    english = _leaves(json.loads((base / "en.json").read_text(encoding="utf-8")))
+    german = _leaves(json.loads((base / "de.json").read_text(encoding="utf-8")))
+
+    untranslated = sorted(key for key, value in english.items() if german.get(key) == value)
+
+    assert not untranslated, "these read identically in both languages:\n  " + "\n  ".join(
+        untranslated
+    )
+
+
+def _leaves(node: dict[str, Any], prefix: str = "") -> dict[str, str]:
+    """Flatten a translation file into dotted key to text."""
+    found: dict[str, str] = {}
+    for key, value in node.items():
+        path = f"{prefix}.{key}"
+        if isinstance(value, dict):
+            found.update(_leaves(value, path))
+        else:
+            found[path] = value
+    return found
