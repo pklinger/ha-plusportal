@@ -98,24 +98,65 @@ On first start, open <http://localhost:8124>, create a throwaway owner account a
 **PlusPortal** integration with the same values as your `.env`. Home Assistant's state
 lives in `.dev/`, which is gitignored: once configured it holds your portal password.
 
-## Home Assistant
+## Installing it in Home Assistant
 
-Install via HACS as a custom repository, then add the **PlusPortal** integration and enter
-your tenant number, username and password. The tariff is optional and can be set — or
-changed — at any time under the integration's options.
+Requires Home Assistant **2026.2.0** or newer — the integration uses statistics APIs that
+changed in that release.
 
-Quarter-hourly meter readings are aggregated into Home Assistant's hourly long-term
-statistics, so consumption appears in the Energy dashboard under the timestamps it was
-actually measured at, not backdated to the moment of import. Add
-`plusportal:<meter id>_energy` as a consumption source there; with a tariff configured,
-`plusportal:<meter id>_cost` gives you euros alongside it.
+### Through HACS
 
-Per metering point you also get sensors for the last day, the current and previous month,
-when the portal last had a value, what share of the data is final, and — with a tariff —
-cost so far, projected annual cost and the expected settlement.
+1. In Home Assistant, open **HACS → ⋮ → Custom repositories**.
+2. Add `https://github.com/pklinger/ha-plusportal` with category **Integration**.
+3. Open the new **PlusPortal** entry and choose **Download**.
+4. Restart Home Assistant.
+5. **Settings → Devices & Services → Add Integration → PlusPortal**, then enter:
 
-Metered values arrive provisional and are corrected days later, so every refresh re-reads
-a rolling three-week window and lets the corrections replace what was stored.
+   | Field | Where to find it |
+   |---|---|
+   | Tenant number | the six digits at the start of your portal address |
+   | Username | your portal login — often the customer number, not an e-mail |
+   | Password | your portal password |
+
+Home Assistant installs the `pyplusportal` library from PyPI on first setup. If that fails,
+the entry will report "not ready" — check the log rather than retrying.
+
+### Without HACS
+
+Copy `custom_components/plusportal/` into your Home Assistant `config/custom_components/`
+directory and restart. Nothing else differs; HACS only automates the copying and the
+update notification.
+
+### Tariff, and what appears
+
+The tariff is optional. Without it you get consumption; with it you also get cost.
+**Settings → Devices & Services → PlusPortal → Configure**:
+
+| Option | Meaning |
+|---|---|
+| Arbeitspreis (ct/kWh) | required for any cost figure |
+| Grundpreis (EUR/year) | apportioned across the billing year |
+| Monatlicher Abschlag (EUR) | needed for the settlement forecast |
+| Beginn Abrechnungsjahr (MM-DD) | defaults to 01-01 |
+| Abrufintervall (hours) | defaults to 6; the portal publishes once a day |
+
+Per metering point you get consumption for the last day, the current and previous month,
+when the portal last had a value, and what share of the data is final. With a tariff, also
+the accrued energy cost and standing charge, the forecast for the billing year and the
+expected settlement.
+
+### The Energy dashboard
+
+Consumption is written to long-term statistics rather than exposed as a
+`total_increasing` sensor, because portal values arrive backdated by a day or more — a
+state-based sensor would book all of it at the moment of import.
+
+Under **Settings → Dashboards → Energy → Grid consumption**, pick the statistic named after
+your meter with `plusportal` underneath it (a chart icon, not a lightning bolt). For cost,
+choose *Use an entity with the current price* and select **Arbeitspreis**.
+
+Quarter-hourly readings are aggregated into hourly statistics. Provisional values are left
+out and substitute values are included, which is the rule the supplier bills by, and each
+refresh re-reads a rolling three-week window so corrections land.
 
 ## Legal
 
