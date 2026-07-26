@@ -17,8 +17,10 @@ prove that one household's July was recorded correctly.
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from collections.abc import AsyncIterator
+from datetime import datetime, timedelta
 from decimal import Decimal
+from itertools import pairwise
 
 import pytest
 
@@ -36,9 +38,7 @@ ENV_PASSWORD = "PLUSPORTAL_PASSWORD"
 def credentials() -> dict[str, str]:
     """Read credentials from the environment, or skip the whole module."""
     missing = [
-        name
-        for name in (ENV_TENANT, ENV_USERNAME, ENV_PASSWORD)
-        if not os.environ.get(name)
+        name for name in (ENV_TENANT, ENV_USERNAME, ENV_PASSWORD) if not os.environ.get(name)
     ]
     if missing:
         pytest.skip(f"live tests need {', '.join(missing)}")
@@ -51,35 +51,35 @@ def credentials() -> dict[str, str]:
 
 
 @pytest.fixture
-async def client(credentials: dict[str, str]):
-    """A client bound to the configured account."""
+async def client(credentials: dict[str, str]) -> AsyncIterator[PlusPortalClient]:
+    """Yield a client bound to the configured account."""
     async with PlusPortalClient(
         credentials["tenant"], credentials["username"], credentials["password"]
     ) as portal:
         yield portal
 
 
-async def test_the_credentials_are_accepted(client) -> None:
+async def test_the_credentials_are_accepted(client: PlusPortalClient) -> None:
     session = await client.login()
 
     assert session.user_id
     assert not session.is_expired()
 
 
-async def test_the_account_has_at_least_one_metering_point(client) -> None:
+async def test_the_account_has_at_least_one_metering_point(client: PlusPortalClient) -> None:
     meter_points = await client.get_meter_points()
 
     assert meter_points, "no metering point — the integration would have nothing to show"
     assert any(point.primary_taf for point in meter_points), "no active tariff use case"
 
 
-async def test_every_metering_point_exposes_a_channel(client) -> None:
+async def test_every_metering_point_exposes_a_channel(client: PlusPortalClient) -> None:
     for point in await client.get_meter_points():
         assert await client.get_channels(point), f"meter {point.id} has no channel"
 
 
 async def test_interval_and_daily_readings_agree_with_the_portals_own_total(
-    client,
+    client: PlusPortalClient,
 ) -> None:
     """The reconciliation that makes the kW->kWh conversion trustworthy.
 
@@ -87,7 +87,7 @@ async def test_interval_and_daily_readings_agree_with_the_portals_own_total(
     energy, the daily series, and the aggregate the portal shows on its tile.
     """
     overviews = {o.meter_point_id: o for o in await client.get_overview()}
-    today = date.today()
+    today = datetime.now(tz=PORTAL_TZ).date()
     first_of_month = today.replace(day=1)
     # The portal publishes yesterday's values, so the current day is incomplete.
     last_complete = today - timedelta(days=1)
@@ -100,9 +100,7 @@ async def test_interval_and_daily_readings_agree_with_the_portals_own_total(
             continue
 
         for channel in await client.get_channels(point):
-            intervals = await client.get_interval_readings(
-                channel, first_of_month, last_complete
-            )
+            intervals = await client.get_interval_readings(channel, first_of_month, last_complete)
             daily = await client.get_daily_readings(channel, first_of_month, last_complete)
             if not intervals:
                 continue
@@ -115,9 +113,9 @@ async def test_interval_and_daily_readings_agree_with_the_portals_own_total(
             )
 
 
-async def test_a_complete_day_is_tiled_exactly_by_its_intervals(client) -> None:
+async def test_a_complete_day_is_tiled_exactly_by_its_intervals(client: PlusPortalClient) -> None:
     """No gaps and no overlaps, or the Energy dashboard would misreport."""
-    day = date.today() - timedelta(days=2)
+    day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():
         for channel in await client.get_channels(point):
@@ -126,16 +124,16 @@ async def test_a_complete_day_is_tiled_exactly_by_its_intervals(client) -> None:
                 continue
 
             assert all(r.start.date() == day for r in readings)
-            for earlier, later in zip(readings, readings[1:], strict=False):
+            for earlier, later in pairwise(readings):
                 assert earlier.end == later.start, "gap or overlap between intervals"
 
             covered = sum((r.duration for r in readings), timedelta())
             assert covered == timedelta(days=1), f"{covered} of the day is covered"
 
 
-async def test_readings_are_usable_as_home_assistant_statistics(client) -> None:
+async def test_readings_are_usable_as_home_assistant_statistics(client: PlusPortalClient) -> None:
     """Timestamps must be aware and land on a whole minute of a known hour."""
-    day = date.today() - timedelta(days=2)
+    day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():
         for channel in await client.get_channels(point):
@@ -148,9 +146,9 @@ async def test_readings_are_usable_as_home_assistant_statistics(client) -> None:
                 assert isinstance(reading.value, Decimal)
 
 
-async def test_the_portal_reports_which_values_are_billable(client) -> None:
+async def test_the_portal_reports_which_values_are_billable(client: PlusPortalClient) -> None:
     """Without the quality flag there is no way to bill accurately."""
-    day = date.today() - timedelta(days=2)
+    day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():
         for channel in await client.get_channels(point):
@@ -162,9 +160,9 @@ async def test_the_portal_reports_which_values_are_billable(client) -> None:
     pytest.skip("no readings available to inspect")
 
 
-async def test_the_timezone_matches_what_the_portal_uses(client) -> None:
+async def test_the_timezone_matches_what_the_portal_uses(client: PlusPortalClient) -> None:
     """A mismatch would shift every value by an hour twice a year."""
-    day = date.today() - timedelta(days=2)
+    day = datetime.now(tz=PORTAL_TZ).date() - timedelta(days=2)
 
     for point in await client.get_meter_points():
         for channel in await client.get_channels(point):

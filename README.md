@@ -60,6 +60,20 @@ PLUSPORTAL_ENERGY_PRICE_CT=32.5 uv run pyplusportal cost
 Run `uv run pyplusportal help` for the full option and environment-variable reference,
 or `uv run pyplusportal help <command>` for one command's own options.
 
+### Verifying against your own portal
+
+The test suite runs offline against recorded fixtures. A second, opt-in suite talks to a
+real portal and reconciles what this client computes against what the portal itself
+reports — the quarter-hourly series, the daily series and the portal's month total must
+agree to the last digit:
+
+```bash
+uv run pytest -m live          # skips cleanly unless .env is filled in
+```
+
+It reads tenant, username and password from the environment only, so no account detail
+ever ends up in the repository.
+
 ## Home Assistant
 
 Install via HACS as a custom repository, then add the **PlusPortal** integration and enter

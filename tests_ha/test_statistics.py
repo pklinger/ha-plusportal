@@ -35,6 +35,18 @@ ENERGY_ID = "plusportal:1000_energy"
 COST_ID = "plusportal:1000_cost"
 
 
+async def flush(hass: HomeAssistant) -> None:
+    """Wait for the recorder to persist what was just imported.
+
+    Statistics are written through the recorder's queue. Two refreshes are
+    hours apart in reality, so a test that imports twice has to wait in
+    between — otherwise the second import reads a running sum that has not
+    been stored yet, and the assertion passes or fails on timing alone.
+    """
+    await hass.async_block_till_done()
+    await async_wait_recording_done(hass)
+
+
 async def read_sums(hass: HomeAssistant, stat_id: str) -> list[tuple[datetime, float]]:
     """Read back every imported statistic as (start, running sum)."""
     await hass.async_block_till_done()
@@ -142,6 +154,7 @@ async def test_a_second_import_continues_the_sum_instead_of_restarting(
     later = quarter_hours(datetime(2026, 7, 20, 2, tzinfo=PORTAL_TZ), 8, kwh="0.25")
 
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, first), None)
+    await flush(hass)
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, later), None)
 
     sums = await read_sums(hass, ENERGY_ID)
@@ -156,6 +169,7 @@ async def test_a_corrected_value_replaces_the_old_one_without_duplicating_it(
     corrected = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.5")
 
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, original), None)
+    await flush(hass)
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, corrected), None)
 
     sums = await read_sums(hass, ENERGY_ID)
@@ -172,6 +186,7 @@ async def test_re_importing_an_overlapping_window_does_not_double_count(
     overlap = full[4:]  # hours 1..3, all of which were already imported
 
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, full), None)
+    await flush(hass)
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, overlap), None)
 
     sums = await read_sums(hass, ENERGY_ID)
