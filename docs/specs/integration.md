@@ -120,17 +120,20 @@ the billing year is backed by data — as strings, so the exact `Decimal` surviv
 *Why:* a report that the bill looks wrong is unanswerable without the figures behind it,
 and zeros would be indistinguishable from an unpriced supply.
 
-### PP-HA-020 — Every amount names the period it covers
-Accrued figures say "to date", projections say "billing year", and the configured standing
-charge is shown per year. All of them carry the billing year's exact start and end as
-attributes.
+### PP-HA-020 — A name says what it measures and whether it has happened yet
+Consumption sensors say "consumption". Cost sensors say either "accrued" or "forecast". The
+configured standing charge is shown per year. The exact period is carried as attributes and
+as two date sensors, not in the name.
 
-*Why:* 1.25 EUR could be a month, a year, or the elapsed part of the billing year. Only the
-last is true. A name that leaves it open makes the number unusable — and the previous label
-"Kosten im Abrechnungsjahr" read as the year's total when it was the cost so far. "To date"
-is not enough either: to date since when, since the meter was installed or since the last
-invoice? The period is named in full. The configured annual standing charge is shown because
-entering 12 EUR/a and never seeing it again gives no way to tell whether it was understood.
+*Why:* three rounds of getting this wrong. "Aktueller Monat" left the quantity to the unit.
+"Kosten im Abrechnungsjahr" read as the year's total when it was the cost so far. "bisher"
+did not say since when. And spelling the period out in full — "Erwartete Abrechnung für das
+gesamte Abrechnungsjahr" — was truncated by Home Assistant to "…für das gesamte…", losing
+exactly the qualifying part.
+
+So the name carries only what cannot be moved elsewhere: the quantity, and whether the
+figure has accrued or is an extrapolation. Everything else is a click away and legible.
+Names stay under about 26 characters, which is where truncation starts.
 
 ### PP-HA-021 — Entity ids are English, independent of the interface language
 Derived from the description key, not from the translated name.
@@ -141,3 +144,11 @@ runs, so a German one produced
 templates, automations and dashboards; they must not change with the interface language, and
 they must stay typeable. Fixing the id also freed the display name to be as precise as it
 needs to be, which is what PP-HA-020 asks for.
+
+### PP-HA-022 — The billing year is shown as two dates
+`Billing year from` and `Billing year to`, as date sensors, present only when a tariff is
+configured.
+
+*Why:* every cost figure is measured against this period, and it is otherwise only visible
+by opening a sensor's attributes one at a time. As dates, Home Assistant formats them in the
+user's locale.

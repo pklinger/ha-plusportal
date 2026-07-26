@@ -424,31 +424,38 @@ async def test_diagnostics_state_plainly_when_no_tariff_is_set(
 # ------------------------------------------------------ naming precision
 
 
-async def test_every_cost_sensor_names_its_reference_period(
+async def test_accrued_and_forecast_figures_are_told_apart_by_name(
     hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
 ) -> None:
-    """PP-HA-020: an amount without a period is unreadable.
+    """PP-HA-020: the one distinction a name has to carry.
 
-    1.25 EUR could be a month, a year or the part of the billing year that has
-    elapsed. Only the last is true, and the name has to say so.
+    The exact period is in the attributes and in the billing year sensors,
+    because Home Assistant truncates a long name and would cut off precisely
+    the qualifying part. What the name must still make unmistakable is whether
+    an amount has already accrued or is an extrapolation.
     """
     await setup_entry(hass, tariff_entry)
 
-    # Each name has to name its own period. "to date" alone would not do it:
-    # to date since when — since the meter existed, or since the last invoice?
-    periodic = {
-        "sensor.1abc0000000000_energy_cost_to_date": "since billing year start",
-        "sensor.1abc0000000000_standing_charge_to_date": "since billing year start",
-        "sensor.1abc0000000000_cost_to_date": "since billing year start",
-        "sensor.1abc0000000000_projected_cost_billing_year": "full billing year",
-        "sensor.1abc0000000000_expected_settlement_billing_year": "full billing year",
-        "sensor.1abc0000000000_standing_charge_per_year": "per year",
-    }
-    for entity_id, expected in periodic.items():
-        state = hass.states.get(entity_id)
-        assert state is not None, f"{entity_id} missing"
-        name = state.attributes["friendly_name"]
-        assert expected in name.lower(), f"{name!r} does not say {expected!r}"
+    accrued = ("energy_cost_to_date", "standing_charge_to_date", "cost_to_date")
+    forecast = ("projected_cost_billing_year", "expected_settlement_billing_year")
+
+    for key in accrued:
+        name = hass.states.get(f"sensor.1abc0000000000_{key}").attributes["friendly_name"]
+        assert "accrued" in name.lower(), f"{name!r} does not say it has accrued"
+    for key in forecast:
+        name = hass.states.get(f"sensor.1abc0000000000_{key}").attributes["friendly_name"]
+        assert "forecast" in name.lower(), f"{name!r} does not say it is a forecast"
+
+
+async def test_consumption_sensors_say_that_they_are_consumption(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-020: "Current month" alone leaves the quantity to the unit."""
+    await setup_entry(hass, tariff_entry)
+
+    for key in ("last_day", "this_month", "previous_month"):
+        name = hass.states.get(f"sensor.1abc0000000000_{key}").attributes["friendly_name"]
+        assert "consumption" in name.lower(), f"{name!r} does not say what it measures"
 
 
 async def test_the_configured_standing_charge_is_shown(
@@ -494,3 +501,52 @@ async def test_entity_ids_do_not_depend_on_the_interface_language(
     }
     assert "sensor.1abc0000000000_energy_cost_to_date" in ids
     assert not any("energiekosten" in entity_id for entity_id in ids)
+
+
+async def test_the_billing_year_is_visible_as_dates(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-022: the period every cost figure refers to, readable on the device.
+
+    It is in the attributes of each cost sensor, but that needs a click per
+    sensor. As two dates it is legible at a glance and formatted in the user's
+    locale by Home Assistant.
+    """
+    await setup_entry(hass, tariff_entry)
+
+    start = hass.states.get("sensor.1abc0000000000_billing_year_start")
+    end = hass.states.get("sensor.1abc0000000000_billing_year_end")
+
+    assert start is not None and end is not None
+    assert start.attributes["device_class"] == "date"
+    assert end.attributes["device_class"] == "date"
+    assert start.state < end.state, "a billing year has to run forwards"
+
+
+async def test_no_billing_year_sensors_without_a_tariff(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-022: without prices there is no billing year to speak of."""
+    await setup_entry(hass, config_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_billing_year_start") is None
+
+
+async def test_cost_sensor_names_stay_short_enough_for_the_device_card(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-020: Home Assistant truncates the name with an ellipsis.
+
+    "Erwartete Abrechnung für das gesamte Abrechnungsjahr" was cut to
+    "Erwartete Abrechnung für das gesamte…", which loses exactly the part that
+    made it precise. The period lives in the attributes and in the billing year
+    sensors instead.
+    """
+    await setup_entry(hass, tariff_entry)
+
+    for state in hass.states.async_all("sensor"):
+        if "1abc" not in state.entity_id:
+            continue
+        # The device name prefixes the friendly name; measure only our part.
+        name = state.attributes["friendly_name"].removeprefix("1ABC0000000000* ")
+        assert len(name) <= 26, f"{name!r} is {len(name)} characters"

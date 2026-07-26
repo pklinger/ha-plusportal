@@ -105,6 +105,16 @@ def _base_price(data: MeterData, tariff: Tariff) -> Decimal:
     return tariff.base_price_eur_per_year
 
 
+def _billing_year_start(data: MeterData, tariff: Tariff) -> date | None:
+    """First day of the billing year every cost figure is measured from."""
+    return data.projection.billing_year[0] if data.projection else None
+
+
+def _billing_year_end(data: MeterData, tariff: Tariff) -> date | None:
+    """Last day of the billing year the projections extrapolate to."""
+    return data.projection.billing_year[1] if data.projection else None
+
+
 def _billing_year_attributes(data: MeterData, tariff: Tariff) -> Mapping[str, Any]:
     """Name the period an amount refers to, so it can be checked."""
     if data.projection is None:
@@ -222,6 +232,20 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         suggested_display_precision=2,
         entity_category=EntityCategory.DIAGNOSTIC,
         tariff_value_fn=_base_price,
+    ),
+    PlusPortalSensorDescription(
+        key="billing_year_start",
+        translation_key="billing_year_start",
+        device_class=SensorDeviceClass.DATE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        tariff_value_fn=_billing_year_start,
+    ),
+    PlusPortalSensorDescription(
+        key="billing_year_end",
+        translation_key="billing_year_end",
+        device_class=SensorDeviceClass.DATE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        tariff_value_fn=_billing_year_end,
     ),
     PlusPortalSensorDescription(
         key="energy_cost_to_date",

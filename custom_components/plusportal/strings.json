@@ -51,41 +51,47 @@
   },
   "entity": {
     "sensor": {
+      "billing_year_end": {
+        "name": "Billing year to"
+      },
+      "billing_year_start": {
+        "name": "Billing year from"
+      },
       "cost_to_date": {
-        "name": "Total cost since billing year start"
+        "name": "Total cost, accrued"
       },
       "data_quality": {
         "name": "Data quality"
       },
       "energy_cost_to_date": {
-        "name": "Energy cost since billing year start"
+        "name": "Energy cost, accrued"
       },
       "energy_price": {
         "name": "Energy price"
       },
       "expected_settlement_billing_year": {
-        "name": "Expected settlement for the full billing year"
+        "name": "Settlement forecast"
       },
       "last_day": {
-        "name": "Last day"
+        "name": "Consumption last day"
       },
       "last_measurement": {
         "name": "Last measurement"
       },
       "previous_month": {
-        "name": "Previous month"
+        "name": "Consumption previous month"
       },
       "projected_cost_billing_year": {
-        "name": "Projected cost for the full billing year"
+        "name": "Cost forecast, year"
       },
       "standing_charge_per_year": {
         "name": "Standing charge per year"
       },
       "standing_charge_to_date": {
-        "name": "Standing charge since billing year start"
+        "name": "Standing charge, accrued"
       },
       "this_month": {
-        "name": "Current month"
+        "name": "Consumption this month"
       }
     }
   }

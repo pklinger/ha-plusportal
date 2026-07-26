@@ -51,41 +51,47 @@
   },
   "entity": {
     "sensor": {
+      "billing_year_end": {
+        "name": "Abrechnungsjahr bis"
+      },
+      "billing_year_start": {
+        "name": "Abrechnungsjahr ab"
+      },
       "cost_to_date": {
-        "name": "Gesamtkosten seit Beginn des Abrechnungsjahres"
+        "name": "Gesamtkosten kumuliert"
       },
       "data_quality": {
         "name": "Datenqualität"
       },
       "energy_cost_to_date": {
-        "name": "Energiekosten seit Beginn des Abrechnungsjahres"
+        "name": "Energiekosten kumuliert"
       },
       "energy_price": {
         "name": "Arbeitspreis"
       },
       "expected_settlement_billing_year": {
-        "name": "Erwartete Abrechnung für das gesamte Abrechnungsjahr"
+        "name": "Abrechnungsprognose"
       },
       "last_day": {
-        "name": "Letzter Tag"
+        "name": "Verbrauch letzter Tag"
       },
       "last_measurement": {
         "name": "Letzte Messung"
       },
       "previous_month": {
-        "name": "Vormonat"
+        "name": "Verbrauch Vormonat"
       },
       "projected_cost_billing_year": {
-        "name": "Prognose für das gesamte Abrechnungsjahr"
+        "name": "Kostenprognose Jahr"
       },
       "standing_charge_per_year": {
         "name": "Grundpreis pro Jahr"
       },
       "standing_charge_to_date": {
-        "name": "Grundpreis seit Beginn des Abrechnungsjahres"
+        "name": "Grundpreis kumuliert"
       },
       "this_month": {
-        "name": "Aktueller Monat"
+        "name": "Verbrauch aktueller Monat"
       }
     }
   }
