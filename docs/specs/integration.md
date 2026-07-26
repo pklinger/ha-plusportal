@@ -71,3 +71,43 @@ The existing entry is updated in place.
 Password and username are redacted.
 
 *Why:* users paste diagnostics into public bug reports.
+
+### PP-HA-014 — Cost is broken down, not just totalled
+The Arbeitspreis component and the accrued Grundpreis are reported as their own
+sensors, and their sum equals the reported total.
+
+*Why:* a single blended figure cannot be checked against anything. Seeing the standing
+charge separately is what makes the total explicable — and it is the part that accrues
+whether or not any energy is used.
+
+### PP-HA-015 — The energy price is exposed as an entity
+In EUR/kWh, present only when a tariff is configured.
+
+*Why:* the Energy dashboard can attach a price entity to a consumption source. Without
+one, users have to retype the price they already entered.
+
+### PP-HA-016 — The settlement figure carries what it is measured against
+Advances paid so far, advances due for the year, the billing year's bounds and how much of
+it is backed by data, as attributes.
+
+*Why:* "you will get 475 EUR back" is not actionable without knowing it assumes twelve
+payments and rests on five weeks of data.
+
+### PP-HA-017 — Statistic ids are scoped to the account
+`plusportal:<account>_<meter point>_<series>`, not the meter point alone.
+
+*Why:* a meter point id is only unique inside one portal account. Two configured accounts
+can both have meter point 5821, and a shared id would sum two households into one series —
+visible only as a graph that looks too high.
+
+### PP-HA-018 — The HTTP client comes from Home Assistant
+`get_async_client(hass)`, not one constructed by the integration.
+
+It is built with an explicit timeout and is never closed by the integration.
+
+*Why:* three separate traps, all found by running against a real instance rather than by
+any unit test. Creating an `httpx.AsyncClient` loads the CA bundle from disk, which stalls
+the event loop. Home Assistant sets no timeout, leaving httpx's default of five seconds —
+less than a month of quarter-hourly data takes to arrive, so the initial backfill fails and
+the entry never becomes ready. And closing a client Home Assistant created is itself
+flagged as a bug; it closes them on shutdown.

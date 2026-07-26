@@ -13,6 +13,7 @@ hour on the way in.
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta
@@ -57,9 +58,18 @@ def _recorder_available(hass: HomeAssistant) -> bool:
     return "recorder" in hass.config.components
 
 
-def statistic_id(meter_point_id: int, kind: str) -> str:
-    """Build the external statistic id for one metering point and series."""
-    return f"{DOMAIN}:{meter_point_id}_{kind}"
+def statistic_id(account: str | None, meter_point_id: int, kind: str) -> str:
+    """Build the external statistic id for one metering point and series.
+
+    The account is part of the id because a meter point id is only unique
+    inside one portal account: two configured accounts can both have a meter
+    point 5821, and sharing an id would sum their energy into one series.
+
+    The recorder only accepts lowercase alphanumerics and single underscores,
+    so the account's separators are normalised.
+    """
+    scope = re.sub(r"[^a-z0-9]+", "_", (account or "unknown").lower()).strip("_")
+    return f"{DOMAIN}:{scope}_{meter_point_id}_{kind}"
 
 
 def hourly_totals(readings: Iterable[Reading]) -> dict[datetime, Decimal]:
@@ -99,7 +109,7 @@ async def async_publish_statistics(
         name = meter_data.meter_point.name or str(meter_data.meter_point.id)
         await _async_publish_series(
             hass,
-            statistic_id(meter_data.meter_point.id, STATISTIC_ENERGY),
+            statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_ENERGY),
             f"{name} energy",
             UnitOfEnergy.KILO_WATT_HOUR,
             "energy",
@@ -110,7 +120,7 @@ async def async_publish_statistics(
             price = tariff.energy_price_eur_per_kwh
             await _async_publish_series(
                 hass,
-                statistic_id(meter_data.meter_point.id, STATISTIC_COST),
+                statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_COST),
                 f"{name} cost",
                 CURRENCY_EUR,
                 None,

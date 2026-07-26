@@ -31,8 +31,8 @@ from pyplusportal.models import Reading, ValueState
 
 from .conftest import quarter_hours
 
-ENERGY_ID = "plusportal:1000_energy"
-COST_ID = "plusportal:1000_cost"
+ENERGY_ID = "plusportal:123456_10001_1000_energy"
+COST_ID = "plusportal:123456_10001_1000_cost"
 
 
 async def flush(hass: HomeAssistant) -> None:
@@ -127,7 +127,7 @@ def test_a_dst_transition_does_not_collapse_two_hours_into_one():
 
 def test_statistic_ids_are_namespaced_to_the_integration():
     """External statistics must carry a domain prefix or the recorder rejects them."""
-    assert statistic_id(1000, "energy") == "plusportal:1000_energy"
+    assert statistic_id("123456-10001", 1000, "energy") == "plusportal:123456_10001_1000_energy"
 
 
 # -------------------------------------------------------------- import
@@ -245,3 +245,25 @@ async def test_a_disabled_recorder_is_not_an_error(
     readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
 
     await async_publish_statistics(hass, config_entry, meter_data(meter_point, readings), None)
+
+
+def test_statistic_ids_are_scoped_to_the_account() -> None:
+    """PP-HA-017: two accounts must not share a statistic series.
+
+    The meter point id is only unique inside one portal account. Two
+    configured accounts — a second household, or a second utility — can each
+    have a meter point 5821, and without the account in the id their energy
+    would be summed into one series.
+    """
+    first = statistic_id("123456-10001", 5821, "energy")
+    second = statistic_id("654321-20002", 5821, "energy")
+
+    assert first != second
+
+
+def test_a_statistic_id_is_accepted_by_home_assistant() -> None:
+    """PP-HA-017: the recorder rejects ids outside its own grammar."""
+    from homeassistant.components.recorder.statistics import valid_statistic_id
+
+    assert valid_statistic_id(statistic_id("123456-10001", 5821, "energy"))
+    assert valid_statistic_id(statistic_id("123456-10001", 5821, "cost"))

@@ -164,7 +164,7 @@ def _render_meters(points: list[tuple[MeterPoint, list[str]]], stream: TextIO) -
             point.name,
             point.category,
             str(point.primary_taf.number) if point.primary_taf else "-",
-            point.primary_taf.label if point.primary_taf else "no active tariff use case",
+            point.primary_taf.title if point.primary_taf else "no active tariff use case",
             ", ".join(obis) or "-",
         ]
         for point, obis in points

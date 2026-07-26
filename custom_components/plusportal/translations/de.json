@@ -51,29 +51,38 @@
   },
   "entity": {
     "sensor": {
-      "last_day": {
-        "name": "Letzter Tag"
-      },
-      "this_month": {
-        "name": "Aktueller Monat"
-      },
-      "previous_month": {
-        "name": "Vormonat"
-      },
-      "last_measurement": {
-        "name": "Letzte Messung"
+      "cost_this_billing_year": {
+        "name": "Kosten im Abrechnungsjahr"
       },
       "data_quality": {
         "name": "Datenqualität"
       },
-      "cost_this_billing_year": {
-        "name": "Kosten im Abrechnungsjahr"
+      "energy_cost": {
+        "name": "Arbeitspreiskosten"
+      },
+      "energy_price": {
+        "name": "Arbeitspreis"
+      },
+      "expected_settlement": {
+        "name": "Erwartete Abrechnung"
+      },
+      "last_day": {
+        "name": "Letzter Tag"
+      },
+      "last_measurement": {
+        "name": "Letzte Messung"
+      },
+      "previous_month": {
+        "name": "Vormonat"
       },
       "projected_cost": {
         "name": "Prognostizierte Kosten"
       },
-      "expected_settlement": {
-        "name": "Erwartete Abrechnung"
+      "standing_charge": {
+        "name": "Grundpreis"
+      },
+      "this_month": {
+        "name": "Aktueller Monat"
       }
     }
   }

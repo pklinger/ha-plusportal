@@ -14,6 +14,7 @@ from pyplusportal.models import (
     Overview,
     Reading,
     Session,
+    Taf,
     ValueState,
 )
 
@@ -256,3 +257,27 @@ def test_naive_datetimes_are_never_produced(session_payload, overview_payload):
     for value in (session.expires_at, overview.first_value_at, overview.last_value_at):
         assert isinstance(value, datetime)
         assert value.tzinfo is not None
+
+
+# ---------------------------------------------------------------------- Taf
+
+
+def _taf(label: str) -> Taf:
+    return Taf(number=55789, type=7, label=label, obis=["1-0:1.8.0"], active=True)
+
+
+def test_a_tariff_use_case_title_explains_its_leading_number():
+    """The portal prefixes the standardised TAF number; on its own it reads as noise."""
+    assert _taf("07: Zählerstandsgangmessung").title == "Zählerstandsgangmessung (TAF 7)"
+
+
+def test_a_single_digit_tariff_use_case_is_not_padded():
+    assert _taf("01: Datensparsamer Tarif").title == "Datensparsamer Tarif (TAF 1)"
+
+
+def test_a_label_without_a_number_is_left_alone():
+    assert _taf("Zählerstandsgangmessung").title == "Zählerstandsgangmessung"
+
+
+def test_an_empty_label_falls_back_to_the_number():
+    assert _taf("").title == "TAF 7"

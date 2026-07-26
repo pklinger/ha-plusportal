@@ -51,29 +51,38 @@
   },
   "entity": {
     "sensor": {
-      "last_day": {
-        "name": "Last day"
-      },
-      "this_month": {
-        "name": "This month"
-      },
-      "previous_month": {
-        "name": "Previous month"
-      },
-      "last_measurement": {
-        "name": "Last measurement"
+      "cost_this_billing_year": {
+        "name": "Cost this billing year"
       },
       "data_quality": {
         "name": "Data quality"
       },
-      "cost_this_billing_year": {
-        "name": "Cost this billing year"
+      "energy_cost": {
+        "name": "Energy cost"
+      },
+      "energy_price": {
+        "name": "Energy price"
+      },
+      "expected_settlement": {
+        "name": "Expected settlement"
+      },
+      "last_day": {
+        "name": "Last day"
+      },
+      "last_measurement": {
+        "name": "Last measurement"
+      },
+      "previous_month": {
+        "name": "Previous month"
       },
       "projected_cost": {
         "name": "Projected cost"
       },
-      "expected_settlement": {
-        "name": "Expected settlement"
+      "standing_charge": {
+        "name": "Standing charge"
+      },
+      "this_month": {
+        "name": "This month"
       }
     }
   }

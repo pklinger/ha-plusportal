@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -41,6 +42,8 @@ def portal(meter_point, channel, overview, session):
         client.get_channels = AsyncMock(return_value=[channel])
         client.get_interval_readings = AsyncMock(return_value=readings)
         client.aclose = AsyncMock()
+        # so a test can assert on how the client was constructed
+        client.factory = factory
         yield client
 
 
@@ -244,3 +247,134 @@ async def test_diagnostics_never_leak_the_password(
     assert "s3cret" not in str(diagnostics)
     assert "1000000000" not in str(diagnostics)
     assert diagnostics["meters"][0]["readings"]["count"] == 96
+
+
+async def test_the_device_is_labelled_without_the_raw_tariff_number(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """The portal writes 07: Zählerstandsgangmessung; spell that number out."""
+    await setup_entry(hass, config_entry)
+
+    device = dr.async_get(hass).devices.get_devices_for_config_entry_id(config_entry.entry_id)[0]
+
+    assert device.model == "Zählerstandsgangmessung (TAF 7)"
+    assert device.manufacturer == "PlusPortal", "we are not affiliated with the operator"
+
+
+# ------------------------------------------------------- cost breakdown
+
+
+@pytest.fixture
+def tariff_entry() -> MockConfigEntry:
+    """PP-HA-014: an entry priced at 35 ct/kWh with a 12 EUR/a standing charge."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456-10001",
+        data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
+        options={
+            CONF_ENERGY_PRICE: 35.0,
+            CONF_BASE_PRICE: 12.0,
+            CONF_MONTHLY_ADVANCE: 80.0,
+        },
+    )
+
+
+async def test_the_standing_charge_is_reported_separately(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-014: a single blended total hides what the Grundpreis contributes."""
+    await setup_entry(hass, tariff_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_standing_charge") is not None
+
+
+async def test_the_energy_component_is_reported_separately(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-014: so the total can be checked against its parts."""
+    await setup_entry(hass, tariff_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_energy_cost") is not None
+
+
+async def test_the_total_equals_energy_plus_standing_charge(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-014: figures that do not add up are worse than a rounded cent."""
+    await setup_entry(hass, tariff_entry)
+
+    energy = Decimal(hass.states.get("sensor.1abc0000000000_energy_cost").state)
+    base = Decimal(hass.states.get("sensor.1abc0000000000_standing_charge").state)
+    total = Decimal(hass.states.get("sensor.1abc0000000000_cost_this_billing_year").state)
+
+    assert energy + base == total
+
+
+async def test_the_energy_price_is_exposed_as_an_entity(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-015: the Energy dashboard can attach a price entity to a source."""
+    await setup_entry(hass, tariff_entry)
+
+    state = hass.states.get("sensor.1abc0000000000_energy_price")
+    assert state is not None
+    assert state.state == "0.35", "35 ct/kWh is 0.35 EUR/kWh"
+    assert state.attributes["unit_of_measurement"] == "EUR/kWh"
+
+
+async def test_the_settlement_shows_what_has_been_paid_so_far(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-016: a settlement figure is meaningless without the advances behind it."""
+    await setup_entry(hass, tariff_entry)
+
+    attributes = hass.states.get("sensor.1abc0000000000_expected_settlement").attributes
+    assert "advances_paid_eur" in attributes
+    assert "advances_due_eur" in attributes
+
+
+async def test_no_price_entity_without_a_tariff(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-015: an unpriced supply has no price to show."""
+    await setup_entry(hass, config_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_energy_price") is None
+
+
+async def test_the_http_client_comes_from_home_assistant(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-018: constructing one ourselves blocks the event loop.
+
+    httpx.AsyncClient loads the CA bundle from disk when it is created. Doing
+    that inside the loop stalls everything else in Home Assistant, and Home
+    Assistant reports it as a bug in the integration.
+    """
+    await setup_entry(hass, config_entry)
+
+    _, kwargs = portal.factory.call_args
+    client = kwargs.get("client")
+    assert client is not None, "let Home Assistant build the client"
+    # httpx defaults to 5 seconds, and a month of quarter-hourly data takes
+    # longer than that to come back. Home Assistant sets no timeout of its own,
+    # so one has to be asked for explicitly or the backfill never completes.
+    assert client.timeout.read is not None
+    assert client.timeout.read >= 30, f"read timeout is only {client.timeout.read}s"
+
+
+async def test_settlement_attributes_survive_being_stored(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-016: the recorder drops a state whose attributes are not JSON.
+
+    Decimal is the right type for money everywhere else in this project, but
+    Home Assistant serialises attributes to JSON and cannot carry it — the
+    entity goes unavailable with only a recorder warning to show for it.
+    """
+    import json
+
+    await setup_entry(hass, tariff_entry)
+
+    attributes = hass.states.get("sensor.1abc0000000000_expected_settlement").attributes
+    json.dumps(dict(attributes))

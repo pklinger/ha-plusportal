@@ -10,11 +10,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from pyplusportal.client import PlusPortalClient
-from pyplusportal.cost import Tariff
+from pyplusportal.cost import Projection, Tariff, project_billing_year
 from pyplusportal.exceptions import AuthenticationError, PlusPortalError
 from pyplusportal.models import Channel, MeterPoint, Overview, Reading
 
@@ -24,6 +25,7 @@ from .const import (
     CORRECTION_WINDOW,
     DEFAULT_SCAN_INTERVAL_HOURS,
     DOMAIN,
+    PORTAL_TIMEOUT,
 )
 from .statistics import async_publish_statistics
 from .tariff import tariff_from_options
@@ -41,6 +43,9 @@ class MeterData:
     channels: list[Channel] = field(default_factory=list)
     overviews: list[Overview] = field(default_factory=list)
     readings: list[Reading] = field(default_factory=list)
+
+    projection: Projection | None = None
+    """Cost projection, or ``None`` while no tariff is configured."""
 
     @property
     def overview(self) -> Overview | None:
@@ -69,10 +74,27 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             config_entry=entry,
             update_interval=timedelta(hours=interval),
         )
+        # Built by Home Assistant so the SSL context comes from its cache
+        # instead of being loaded from disk inside the event loop.
+        #
+        # Not the *shared* client: this one carries the portal's session cookie,
+        # and it needs a timeout of its own. Home Assistant sets none, which
+        # leaves httpx's default of five seconds — less than a month of
+        # quarter-hourly data takes to arrive, so the backfill would never end.
+        self._httpx = create_async_httpx_client(hass, timeout=PORTAL_TIMEOUT)
         self._client = PlusPortalClient(
             entry.data[CONF_TENANT],
             entry.data[CONF_USERNAME],
             entry.data[CONF_PASSWORD],
+            # Built by Home Assistant so the SSL context comes from its cache
+            # instead of being loaded from disk inside the event loop.
+            #
+            # Not the *shared* client: this one carries the portal's session
+            # cookie, and it needs a timeout of its own. Home Assistant sets
+            # none, which leaves httpx's default of five seconds — less than a
+            # month of quarter-hourly data takes to arrive, so the initial
+            # backfill would never finish.
+            client=self._httpx,
         )
         self._channels: dict[int, list[Channel]] = {}
         self._backfilled: set[int] = set()
@@ -83,7 +105,13 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
         return tariff_from_options(self.config_entry.options)
 
     async def async_shutdown_client(self) -> None:
-        """Release the HTTP client when the entry is unloaded."""
+        """Release anything the client owns when the entry is unloaded.
+
+        The httpx client is not closed here. Home Assistant created it and
+        closes it on shutdown; an integration doing so itself is flagged as a
+        bug. The library only closes clients it created, so it leaves this one
+        alone too.
+        """
         await self._client.aclose()
 
     async def _async_update_data(self) -> dict[int, MeterData]:
@@ -120,6 +148,8 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
                         channel, self._window_start(entry, today), today
                     )
                 )
+            if (tariff := self.tariff) is not None:
+                entry.projection = project_billing_year(entry.readings, tariff, today=today)
             data[meter_point.id] = entry
 
         await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)

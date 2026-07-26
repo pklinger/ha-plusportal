@@ -74,6 +74,30 @@ uv run pytest -m live          # skips cleanly unless .env is filled in
 It reads tenant, username and password from the environment only, so no account detail
 ever ends up in the repository.
 
+### Running the integration in a real Home Assistant
+
+Neither test suite catches what only a running instance shows — a blocking call in the
+event loop, a timeout that is too short for the first backfill, an attribute Home Assistant
+cannot serialise. All three of those were real, and all three were found this way.
+
+```bash
+scripts/ha-dev.sh up        # starts Home Assistant on :8124 with this integration
+scripts/ha-dev.sh state     # what the entities report
+scripts/ha-dev.sh stats     # what reached the Energy dashboard
+scripts/ha-dev.sh logs      # follow the integration
+scripts/ha-dev.sh sync      # after a change: rebuild, reinstall, restart
+scripts/ha-dev.sh reset     # throw the instance away
+```
+
+The integration is bind-mounted, so editing and restarting is the whole loop. The library
+is installed into the container from a locally built wheel, which is what lets this work
+before `pyplusportal` exists on PyPI — Home Assistant skips the pin in `manifest.json` once
+the requirement is already satisfied.
+
+On first start, open <http://localhost:8124>, create a throwaway owner account and add the
+**PlusPortal** integration with the same values as your `.env`. Home Assistant's state
+lives in `.dev/`, which is gitignored: once configured it holds your portal password.
+
 ## Home Assistant
 
 Install via HACS as a custom repository, then add the **PlusPortal** integration and enter

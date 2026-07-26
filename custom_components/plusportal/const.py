@@ -26,6 +26,10 @@ MAX_SCAN_INTERVAL_HOURS: Final = 24
 #: re-fetches this many days back and lets the newer values win.
 CORRECTION_WINDOW: Final = timedelta(days=21)
 
+#: Request timeout. The portal needs several seconds for a month of
+#: quarter-hourly data, and httpx would otherwise default to five.
+PORTAL_TIMEOUT: Final = 60.0
+
 #: Statistic id suffixes, as they appear in the Energy dashboard.
 STATISTIC_ENERGY: Final = "energy"
 STATISTIC_COST: Final = "cost"

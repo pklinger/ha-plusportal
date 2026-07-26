@@ -28,9 +28,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
-from pyplusportal.cost import Tariff, project_billing_year
+from pyplusportal.cost import Tariff
 
 from .const import DOMAIN
 from .coordinator import MeterData, PlusPortalConfigEntry, PlusPortalCoordinator
@@ -82,17 +81,54 @@ def _data_quality(data: MeterData) -> Decimal | None:
     return Decimal(billable) / Decimal(len(data.readings)) * 100
 
 
-def _observed_cost(data: MeterData, tariff: Tariff) -> Decimal:
-    projection = project_billing_year(data.readings, tariff, today=dt_util.now().date())
-    return projection.observed.total_eur
+def _observed_cost(data: MeterData, tariff: Tariff) -> Decimal | None:
+    return data.projection.observed.total_eur if data.projection else None
 
 
-def _projected_cost(data: MeterData, tariff: Tariff) -> Decimal:
-    return project_billing_year(data.readings, tariff, today=dt_util.now().date()).projected_eur
+def _energy_cost(data: MeterData, tariff: Tariff) -> Decimal | None:
+    """Arbeitspreis component only."""
+    return data.projection.observed.energy_eur if data.projection else None
+
+
+def _standing_charge(data: MeterData, tariff: Tariff) -> Decimal | None:
+    """Grundpreis accrued so far, charged pro rata over the billing year."""
+    return data.projection.observed.base_eur if data.projection else None
+
+
+def _energy_price(data: MeterData, tariff: Tariff) -> Decimal:
+    """Price per kWh, so the Energy dashboard can attach it to a source."""
+    return tariff.energy_price_eur_per_kwh
+
+
+def _projected_cost(data: MeterData, tariff: Tariff) -> Decimal | None:
+    return data.projection.projected_eur if data.projection else None
 
 
 def _expected_settlement(data: MeterData, tariff: Tariff) -> Decimal | None:
-    return project_billing_year(data.readings, tariff, today=dt_util.now().date()).settlement_eur
+    return data.projection.settlement_eur if data.projection else None
+
+
+def _settlement_attributes(data: MeterData, tariff: Tariff) -> Mapping[str, Any]:
+    """Report what the settlement is measured against; alone it means nothing."""
+    if data.projection is None:
+        return {}
+    projection = data.projection
+    start, end = projection.billing_year
+    # Attributes are serialised to JSON, which cannot carry Decimal: the state
+    # is dropped and the entity goes unavailable with only a recorder warning.
+    # These are already rounded to the cent, so float loses nothing that shows.
+    return {
+        "advances_paid_eur": _as_number(projection.advances_paid_eur),
+        "advances_due_eur": _as_number(projection.advances_due_eur),
+        "billing_year_start": start.isoformat(),
+        "billing_year_end": end.isoformat(),
+        "data_coverage_percent": float(round(projection.coverage * 100, 1)),
+    }
+
+
+def _as_number(value: Decimal | None) -> float | None:
+    """Convert an amount for an attribute, keeping ``None`` distinct from zero."""
+    return None if value is None else float(value)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -102,6 +138,7 @@ class PlusPortalSensorDescription(SensorEntityDescription):
     value_fn: Callable[[MeterData], Any] | None = None
     tariff_value_fn: Callable[[MeterData, Tariff], Any] | None = None
     attributes_fn: Callable[[MeterData], Mapping[str, Any]] | None = None
+    tariff_attributes_fn: Callable[[MeterData, Tariff], Mapping[str, Any]] | None = None
 
 
 CONSUMPTION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
@@ -153,6 +190,32 @@ CONSUMPTION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
 
 COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
     PlusPortalSensorDescription(
+        key="energy_price",
+        translation_key="energy_price",
+        native_unit_of_measurement="EUR/kWh",
+        suggested_display_precision=4,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        tariff_value_fn=_energy_price,
+    ),
+    PlusPortalSensorDescription(
+        key="energy_cost",
+        translation_key="energy_cost",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        tariff_value_fn=_energy_cost,
+    ),
+    PlusPortalSensorDescription(
+        key="standing_charge",
+        translation_key="standing_charge",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        tariff_value_fn=_standing_charge,
+    ),
+    PlusPortalSensorDescription(
         key="cost_this_billing_year",
         translation_key="cost_this_billing_year",
         device_class=SensorDeviceClass.MONETARY,
@@ -176,6 +239,7 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
         tariff_value_fn=_expected_settlement,
+        tariff_attributes_fn=_settlement_attributes,
     ),
 )
 
@@ -222,8 +286,11 @@ class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.unique_id}_{meter_point_id}")},
             name=meter_point.name or str(meter_point_id),
-            manufacturer="Thüga SmartService",
-            model=meter_point.primary_taf.label if meter_point.primary_taf else None,
+            # Where the data comes from, not who built the meter. Naming the
+            # portal operator here would read as "by Thüga SmartService", which
+            # is exactly the affiliation this project does not have.
+            manufacturer="PlusPortal",
+            model=meter_point.primary_taf.title if meter_point.primary_taf else None,
             serial_number=meter_point.name or None,
         )
 
@@ -254,6 +321,13 @@ class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         """Extra context, such as which day a value belongs to."""
         data = self._data
-        if data is None or self.entity_description.attributes_fn is None:
+        if data is None:
             return None
-        return self.entity_description.attributes_fn(data)
+
+        description = self.entity_description
+        if description.tariff_attributes_fn is not None:
+            tariff = self.coordinator.tariff
+            return None if tariff is None else description.tariff_attributes_fn(data, tariff)
+        if description.attributes_fn is not None:
+            return description.attributes_fn(data)
+        return None

@@ -1,0 +1,23 @@
+# A throwaway Home Assistant for testing this integration against a real portal.
+#
+#   scripts/ha-dev.sh up
+#
+# The integration is bind-mounted rather than copied, so an edit plus a restart
+# is the whole loop. Home Assistant's own state lives in .dev/ha-config, which
+# is gitignored — it holds the portal password once the integration is set up.
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ha-plusportal-dev
+    volumes:
+      - ./.dev/ha-config:/config
+      - ./custom_components/plusportal:/config/custom_components/plusportal
+      - ./dist:/dist:ro
+    ports:
+      - "8124:8123"
+    environment:
+      # Without this the container runs on UTC while the portal reports German
+      # local time, which makes every timestamp in the log two hours off from
+      # what the integration is actually doing.
+      - TZ=Europe/Berlin
+    restart: unless-stopped

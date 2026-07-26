@@ -20,6 +20,10 @@ coverage.xml
 .env.*
 !.env.example
 
+# Throwaway Home Assistant used by scripts/ha-dev.sh. Once the integration is
+# configured, .storage/core.config_entries holds the portal password.
+.dev/
+
 # Raw, unredacted API captures for manual debugging (not written by any
 # pyplusportal command — `probe` only writes redacted fixtures via --out)
 tests/fixtures/raw/

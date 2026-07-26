@@ -10,6 +10,7 @@ rather than silently producing wrong numbers.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -23,6 +24,9 @@ from .const import (
     TAF_STATUS_ACTIVE,
 )
 from .exceptions import ParseError
+
+#: ``"07: Zählerstandsgangmessung"`` — the portal prefixes the TAF number.
+_TAF_LABEL_RE = re.compile(r"^\s*(\d+)\s*:\s*(.+?)\s*$")
 
 __all__ = [
     "Channel",
@@ -206,6 +210,19 @@ class Taf:
     label: str
     obis: list[str]
     active: bool
+
+    @property
+    def title(self) -> str:
+        """Readable name, with the standardised TAF number spelled out.
+
+        The portal labels these ``"07: Zählerstandsgangmessung"``. The leading
+        number is the tariff use case from the German smart meter gateway
+        specification, but on its own it just reads as noise in a device name.
+        """
+        match = _TAF_LABEL_RE.match(self.label)
+        if match:
+            return f"{match.group(2)} (TAF {int(match.group(1))})"
+        return self.label or f"TAF {self.type}"
 
     @classmethod
     def from_api(cls, raw: Any) -> Self:
