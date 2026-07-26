@@ -68,6 +68,37 @@ Also required, or the portal refuses: `diagramSubType` (404 without it) and all 
   environment. A hook blocks commits that violate this.
 - Docstrings in imperative mood, English, on every public function. Line length 100.
 
+## Pull requests and versions
+
+**`main` takes pull requests only.** Direct pushes are refused by a ruleset on GitHub and by
+an agent hook before anything is sent. Work on a branch whose prefix states the change type,
+because the required version bump is derived from it:
+
+| Prefix | Version moves | Meaning |
+|---|---|---|
+| `fix/` | patch | a bug fix, nothing added or removed |
+| `feat/` | minor | new behaviour, backwards compatible |
+| `feat!/` | major | behaviour removed or changed incompatibly |
+| `chore/` `docs/` `test/` `ci/` | none | nothing users receive changed |
+
+```bash
+git switch -c fix/statistics-sum-restarts
+git push -u origin fix/statistics-sum-restarts
+gh pr create --fill
+```
+
+A pull request touching `src/pyplusportal/` or `custom_components/plusportal/` must move the
+version in **all three** places — `pyproject.toml`, the manifest's `version`, and the
+manifest's requirements pin — or CI rejects it. Home Assistant caches an integration by its
+manifest version and HACS compares it to offer updates, so shipping changed code under an
+unchanged version leaves users on the old one with nothing to indicate why.
+
+Below 1.0.0 a major bump moves the minor, as semver permits. Check locally with:
+
+```bash
+uv run python scripts/check_version_bump.py origin/main
+```
+
 ## Specs
 
 `docs/specs/` holds numbered requirements. Every one must be referenced by at least one
