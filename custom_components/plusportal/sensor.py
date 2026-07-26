@@ -215,8 +215,8 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_value_fn=_energy_price,
     ),
     PlusPortalSensorDescription(
-        key="base_price",
-        translation_key="base_price",
+        key="standing_charge_per_year",
+        translation_key="standing_charge_per_year",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
@@ -224,8 +224,8 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_value_fn=_base_price,
     ),
     PlusPortalSensorDescription(
-        key="energy_cost",
-        translation_key="energy_cost",
+        key="energy_cost_to_date",
+        translation_key="energy_cost_to_date",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=CURRENCY_EUR,
@@ -234,8 +234,8 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
-        key="standing_charge",
-        translation_key="standing_charge",
+        key="standing_charge_to_date",
+        translation_key="standing_charge_to_date",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=CURRENCY_EUR,
@@ -254,8 +254,8 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
-        key="projected_cost",
-        translation_key="projected_cost",
+        key="projected_cost_billing_year",
+        translation_key="projected_cost_billing_year",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
@@ -263,8 +263,8 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
-        key="expected_settlement",
-        translation_key="expected_settlement",
+        key="expected_settlement_billing_year",
+        translation_key="expected_settlement_billing_year",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
@@ -323,6 +323,19 @@ class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
             model=meter_point.primary_taf.title if meter_point.primary_taf else None,
             serial_number=meter_point.name or None,
         )
+
+    @property
+    def suggested_object_id(self) -> str:
+        """Build the entity id from the description key, not the display name.
+
+        Home Assistant derives entity ids from the translated name, so a German
+        instance produced sensor.…_energiekosten_seit_beginn_des_abrechnungs-
+        jahres. Entity ids are referenced from templates and automations and
+        should not depend on the interface language, so the English key is used
+        and the translation is left to do only what it is for.
+        """
+        # Home Assistant prefixes the device name itself.
+        return self.entity_description.key
 
     @property
     def _data(self) -> MeterData | None:

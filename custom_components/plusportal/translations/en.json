@@ -51,23 +51,20 @@
   },
   "entity": {
     "sensor": {
-      "base_price": {
-        "name": "Standing charge per year"
-      },
       "cost_to_date": {
-        "name": "Cost to date"
+        "name": "Total cost since billing year start"
       },
       "data_quality": {
         "name": "Data quality"
       },
-      "energy_cost": {
-        "name": "Energy cost to date"
+      "energy_cost_to_date": {
+        "name": "Energy cost since billing year start"
       },
       "energy_price": {
         "name": "Energy price"
       },
-      "expected_settlement": {
-        "name": "Expected settlement, billing year"
+      "expected_settlement_billing_year": {
+        "name": "Expected settlement for the full billing year"
       },
       "last_day": {
         "name": "Last day"
@@ -78,14 +75,17 @@
       "previous_month": {
         "name": "Previous month"
       },
-      "projected_cost": {
-        "name": "Projected cost, billing year"
+      "projected_cost_billing_year": {
+        "name": "Projected cost for the full billing year"
       },
-      "standing_charge": {
-        "name": "Standing charge to date"
+      "standing_charge_per_year": {
+        "name": "Standing charge per year"
+      },
+      "standing_charge_to_date": {
+        "name": "Standing charge since billing year start"
       },
       "this_month": {
-        "name": "This month"
+        "name": "Current month"
       }
     }
   }

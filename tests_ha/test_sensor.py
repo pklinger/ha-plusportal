@@ -434,12 +434,14 @@ async def test_every_cost_sensor_names_its_reference_period(
     """
     await setup_entry(hass, tariff_entry)
 
+    # Each name has to name its own period. "to date" alone would not do it:
+    # to date since when — since the meter existed, or since the last invoice?
     periodic = {
-        "sensor.1abc0000000000_energy_cost_to_date": "to date",
-        "sensor.1abc0000000000_standing_charge_to_date": "to date",
-        "sensor.1abc0000000000_cost_to_date": "to date",
-        "sensor.1abc0000000000_projected_cost_billing_year": "billing year",
-        "sensor.1abc0000000000_expected_settlement_billing_year": "billing year",
+        "sensor.1abc0000000000_energy_cost_to_date": "since billing year start",
+        "sensor.1abc0000000000_standing_charge_to_date": "since billing year start",
+        "sensor.1abc0000000000_cost_to_date": "since billing year start",
+        "sensor.1abc0000000000_projected_cost_billing_year": "full billing year",
+        "sensor.1abc0000000000_expected_settlement_billing_year": "full billing year",
         "sensor.1abc0000000000_standing_charge_per_year": "per year",
     }
     for entity_id, expected in periodic.items():
@@ -473,3 +475,22 @@ async def test_cost_sensors_carry_the_billing_year_they_refer_to(
         attributes = hass.states.get(f"sensor.1abc0000000000_{key}").attributes
         assert "billing_year_start" in attributes, key
         assert "billing_year_end" in attributes, key
+
+
+async def test_entity_ids_do_not_depend_on_the_interface_language(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-021: ids are referenced from templates and must be stable.
+
+    Home Assistant derives an entity id from the translated name, so a German
+    instance produced sensor.…_energiekosten_seit_beginn_des_abrechnungsjahres.
+    The id comes from the English description key instead.
+    """
+    hass.config.language = "de"
+    await setup_entry(hass, tariff_entry)
+
+    ids = {
+        state.entity_id for state in hass.states.async_all("sensor") if "1abc" in state.entity_id
+    }
+    assert "sensor.1abc0000000000_energy_cost_to_date" in ids
+    assert not any("energiekosten" in entity_id for entity_id in ids)

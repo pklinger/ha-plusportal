@@ -98,22 +98,8 @@ EOF
     ;;
 
   state)
-    docker exec -i "$CONTAINER" python - <<'PY'
-import sqlite3
-db = sqlite3.connect("/config/home-assistant_v2.db")
-rows = list(db.execute("""
-    SELECT m.entity_id, s.state FROM states s
-    JOIN states_meta m ON s.metadata_id = m.metadata_id
-    WHERE s.state_id IN (SELECT MAX(state_id) FROM states GROUP BY metadata_id)
-      AND m.entity_id IN (
-          SELECT entity_id FROM states_meta WHERE entity_id LIKE 'sensor.%')
-    ORDER BY m.entity_id"""))
-shown = [(e, v) for e, v in rows if "isk" in e or "plusportal" in e]
-if not shown:
-    print("no entities yet — is the integration configured?")
-for entity, value in shown:
-    print(f"  {value:>26}  {entity}")
-PY
+    docker cp scripts/ha_state.py "$CONTAINER":/ha_state.py >/dev/null
+    docker exec "$CONTAINER" python /ha_state.py
     ;;
 
   stats)

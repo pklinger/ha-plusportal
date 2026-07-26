@@ -127,6 +127,17 @@ attributes.
 
 *Why:* 1.25 EUR could be a month, a year, or the elapsed part of the billing year. Only the
 last is true. A name that leaves it open makes the number unusable — and the previous label
-"Kosten im Abrechnungsjahr" read as the year's total when it was the cost so far. The
-configured annual standing charge is shown because entering 12 EUR/a and never seeing it
-again gives no way to tell whether it was understood.
+"Kosten im Abrechnungsjahr" read as the year's total when it was the cost so far. "To date"
+is not enough either: to date since when, since the meter was installed or since the last
+invoice? The period is named in full. The configured annual standing charge is shown because
+entering 12 EUR/a and never seeing it again gives no way to tell whether it was understood.
+
+### PP-HA-021 — Entity ids are English, independent of the interface language
+Derived from the description key, not from the translated name.
+
+*Why:* Home Assistant builds an entity id from the name in whatever language the instance
+runs, so a German one produced
+`sensor.…_energiekosten_seit_beginn_des_abrechnungsjahres`. Ids are referenced from
+templates, automations and dashboards; they must not change with the interface language, and
+they must stay typeable. Fixing the id also freed the display name to be as precise as it
+needs to be, which is what PP-HA-020 asks for.
