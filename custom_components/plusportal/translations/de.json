@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Mit PlusPortal verbinden",
-        "description": "Die Mandantennummer ist der erste Teil deiner Portaladresse: https://123456.plusportal.de ist Mandant 123456.",
+        "description": "Die Mandantennummer ist der sechsstellige Code am Anfang deiner Portaladresse, zum Beispiel 123456.",
         "data": {
           "tenant": "Mandantennummer",
           "username": "Benutzername (E-Mail-Adresse oder Kundennummer)",

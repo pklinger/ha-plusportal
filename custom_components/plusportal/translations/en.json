@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect to PlusPortal",
-        "description": "Your tenant number is the first part of your portal address: https://123456.plusportal.de is tenant 123456.",
+        "description": "Your tenant number is the six-digit code at the start of your portal address, for example 123456.",
         "data": {
           "tenant": "Tenant number",
           "username": "Username (e-mail address or customer number)",
