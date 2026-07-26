@@ -287,3 +287,20 @@ async def test_an_invalid_tariff_is_rejected_during_setup_too(
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_BILLING_YEAR_START: "invalid_billing_year_start"}
+
+
+async def test_the_first_step_says_that_prices_are_optional_and_can_wait(
+    hass: HomeAssistant,
+) -> None:
+    """PP-HA-024: half the entities depend on a tariff nobody mentions.
+
+    Someone who finishes setup without prices sees a device with consumption
+    only and no indication that cost exists, is optional, or can be added
+    later. The first screen has to say so.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    description = result["description_placeholders"] or {}
+    assert description.get("tariff_hint"), "the first step must mention the tariff"

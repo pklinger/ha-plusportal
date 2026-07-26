@@ -54,7 +54,12 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --group ha
-      - run: uv run --group ha pytest -c pytest-ha.ini -q
+      # The integration was previously untested by any coverage gate; a
+      # feature could ship with no test at all and nothing would say so.
+      - run: >
+          uv run --group ha pytest -c pytest-ha.ini -q
+          --cov=custom_components/plusportal --cov-report=term-missing
+          --cov-fail-under=90
 
   hassfest:
     name: Home Assistant manifest

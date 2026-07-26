@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect to PlusPortal",
-        "description": "Your tenant number is the six-digit code at the start of your portal address, for example 123456.",
+        "description": "Your tenant number is the six-digit code at the start of your portal address, for example 123456.\n\nThe next step asks for your tariff. It is optional — without it you get consumption only, and you can add or change prices at any time under Configure.",
         "data": {
           "tenant": "Tenant number",
           "username": "Username (e-mail address or customer number)",

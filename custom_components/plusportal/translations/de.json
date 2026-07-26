@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Mit PlusPortal verbinden",
-        "description": "Die Mandantennummer ist der sechsstellige Code am Anfang deiner Portaladresse, zum Beispiel 123456.",
+        "description": "Die Mandantennummer ist der sechsstellige Code am Anfang deiner Portaladresse, zum Beispiel 123456.\n\nIm nächsten Schritt kannst du deinen Tarif angeben. Das ist optional — ohne ihn wird nur der Verbrauch erfasst, und du kannst die Preise jederzeit unter Konfigurieren nachtragen oder ändern.",
         "data": {
           "tenant": "Mandantennummer",
           "username": "Benutzername (E-Mail-Adresse oder Kundennummer)",

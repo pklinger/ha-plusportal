@@ -145,7 +145,15 @@ class PlusPortalConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._credentials = dict(user_input)
                     return await self.async_step_tariff()
 
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=STEP_USER_SCHEMA,
+            errors=errors,
+            # Half the entities depend on a tariff. Someone who finishes setup
+            # without one sees consumption and nothing to suggest cost exists,
+            # is optional, or can be added later.
+            description_placeholders={"tariff_hint": "1"},
+        )
 
     async def async_step_tariff(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Offer the tariff while the user is already here.
