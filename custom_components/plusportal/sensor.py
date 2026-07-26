@@ -100,6 +100,23 @@ def _energy_price(data: MeterData, tariff: Tariff) -> Decimal:
     return tariff.energy_price_eur_per_kwh
 
 
+def _base_price(data: MeterData, tariff: Tariff) -> Decimal:
+    """Return the configured annual standing charge, unapportioned."""
+    return tariff.base_price_eur_per_year
+
+
+def _billing_year_attributes(data: MeterData, tariff: Tariff) -> Mapping[str, Any]:
+    """Name the period an amount refers to, so it can be checked."""
+    if data.projection is None:
+        return {}
+    start, end = data.projection.billing_year
+    return {
+        "billing_year_start": start.isoformat(),
+        "billing_year_end": end.isoformat(),
+        "data_coverage_percent": float(round(data.projection.coverage * 100, 1)),
+    }
+
+
 def _projected_cost(data: MeterData, tariff: Tariff) -> Decimal | None:
     return data.projection.projected_eur if data.projection else None
 
@@ -198,6 +215,15 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         tariff_value_fn=_energy_price,
     ),
     PlusPortalSensorDescription(
+        key="base_price",
+        translation_key="base_price",
+        device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        tariff_value_fn=_base_price,
+    ),
+    PlusPortalSensorDescription(
         key="energy_cost",
         translation_key="energy_cost",
         device_class=SensorDeviceClass.MONETARY,
@@ -205,6 +231,7 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
         tariff_value_fn=_energy_cost,
+        tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
         key="standing_charge",
@@ -214,15 +241,17 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
         tariff_value_fn=_standing_charge,
+        tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
-        key="cost_this_billing_year",
-        translation_key="cost_this_billing_year",
+        key="cost_to_date",
+        translation_key="cost_to_date",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
         tariff_value_fn=_observed_cost,
+        tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
         key="projected_cost",
@@ -231,6 +260,7 @@ COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EUR,
         suggested_display_precision=2,
         tariff_value_fn=_projected_cost,
+        tariff_attributes_fn=_billing_year_attributes,
     ),
     PlusPortalSensorDescription(
         key="expected_settlement",

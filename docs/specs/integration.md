@@ -111,3 +111,22 @@ the event loop. Home Assistant sets no timeout, leaving httpx's default of five 
 less than a month of quarter-hourly data takes to arrive, so the initial backfill fails and
 the entry never becomes ready. And closing a client Home Assistant created is itself
 flagged as a bug; it closes them on shutdown.
+
+### PP-HA-019 — Diagnostics carry the cost breakdown
+The split between energy and standing charge, the projection, the advances and how much of
+the billing year is backed by data — as strings, so the exact `Decimal` survives JSON.
+`None` when no tariff is configured.
+
+*Why:* a report that the bill looks wrong is unanswerable without the figures behind it,
+and zeros would be indistinguishable from an unpriced supply.
+
+### PP-HA-020 — Every amount names the period it covers
+Accrued figures say "to date", projections say "billing year", and the configured standing
+charge is shown per year. All of them carry the billing year's exact start and end as
+attributes.
+
+*Why:* 1.25 EUR could be a month, a year, or the elapsed part of the billing year. Only the
+last is true. A name that leaves it open makes the number unusable — and the previous label
+"Kosten im Abrechnungsjahr" read as the year's total when it was the cost so far. The
+configured annual standing charge is shown because entering 12 EUR/a and never seeing it
+again gives no way to tell whether it was understood.

@@ -6,6 +6,7 @@
 #   scripts/ha-dev.sh logs     follow what the integration is doing
 #   scripts/ha-dev.sh state    what the entities currently report
 #   scripts/ha-dev.sh stats    what reached the Energy dashboard
+#   scripts/ha-dev.sh prune    drop entities and statistics left by a rename
 #   scripts/ha-dev.sh down     stop it, keeping the configured account
 #   scripts/ha-dev.sh reset    throw the instance away and start over
 set -euo pipefail
@@ -133,6 +134,18 @@ for mid, sid, unit in meta:
     l = dt.datetime.fromtimestamp(last).strftime("%Y-%m-%d %H:%M")
     print(f"  {sid}\n    {n} hours  {f} .. {l}  total {total} {unit}")
 PY
+    ;;
+
+  prune)
+    step "Removing entities and statistics left behind by a rename"
+    docker stop "$CONTAINER" >/dev/null
+    docker run --rm \
+      -v "$PWD/.dev/ha-config:/config" \
+      -v "$PWD/custom_components/plusportal:/config/custom_components/plusportal:ro" \
+      -v "$PWD/scripts/ha_prune.py:/ha_prune.py:ro" \
+      --entrypoint python ghcr.io/home-assistant/home-assistant:stable /ha_prune.py
+    docker start "$CONTAINER" >/dev/null
+    wait_for_http
     ;;
 
   down)

@@ -125,7 +125,7 @@ async def test_no_cost_sensors_without_a_tariff(
     """PP-HA-011: Cost entities with no prices behind them would only show zeros."""
     await setup_entry(hass, config_entry)
 
-    assert hass.states.get("sensor.1abc0000000000_projected_cost") is None
+    assert hass.states.get("sensor.1abc0000000000_projected_cost_billing_year") is None
 
 
 async def test_cost_sensors_appear_once_a_tariff_is_configured(
@@ -144,9 +144,9 @@ async def test_cost_sensors_appear_once_a_tariff_is_configured(
     )
     await setup_entry(hass, entry)
 
-    assert hass.states.get("sensor.1abc0000000000_projected_cost") is not None
-    assert hass.states.get("sensor.1abc0000000000_expected_settlement") is not None
-    assert hass.states.get("sensor.1abc0000000000_cost_this_billing_year") is not None
+    assert hass.states.get("sensor.1abc0000000000_projected_cost_billing_year") is not None
+    assert hass.states.get("sensor.1abc0000000000_expected_settlement_billing_year") is not None
+    assert hass.states.get("sensor.1abc0000000000_cost_to_date") is not None
 
 
 async def test_the_settlement_sensor_says_which_way_the_money_flows(
@@ -161,7 +161,9 @@ async def test_the_settlement_sensor_says_which_way_the_money_flows(
     )
     await setup_entry(hass, entry)
 
-    assert float(hass.states.get("sensor.1abc0000000000_expected_settlement").state) < 0
+    assert (
+        float(hass.states.get("sensor.1abc0000000000_expected_settlement_billing_year").state) < 0
+    )
 
 
 # --------------------------------------------------------------- registry
@@ -285,7 +287,7 @@ async def test_the_standing_charge_is_reported_separately(
     """PP-HA-014: a single blended total hides what the Grundpreis contributes."""
     await setup_entry(hass, tariff_entry)
 
-    assert hass.states.get("sensor.1abc0000000000_standing_charge") is not None
+    assert hass.states.get("sensor.1abc0000000000_standing_charge_to_date") is not None
 
 
 async def test_the_energy_component_is_reported_separately(
@@ -294,7 +296,7 @@ async def test_the_energy_component_is_reported_separately(
     """PP-HA-014: so the total can be checked against its parts."""
     await setup_entry(hass, tariff_entry)
 
-    assert hass.states.get("sensor.1abc0000000000_energy_cost") is not None
+    assert hass.states.get("sensor.1abc0000000000_energy_cost_to_date") is not None
 
 
 async def test_the_total_equals_energy_plus_standing_charge(
@@ -303,9 +305,9 @@ async def test_the_total_equals_energy_plus_standing_charge(
     """PP-HA-014: figures that do not add up are worse than a rounded cent."""
     await setup_entry(hass, tariff_entry)
 
-    energy = Decimal(hass.states.get("sensor.1abc0000000000_energy_cost").state)
-    base = Decimal(hass.states.get("sensor.1abc0000000000_standing_charge").state)
-    total = Decimal(hass.states.get("sensor.1abc0000000000_cost_this_billing_year").state)
+    energy = Decimal(hass.states.get("sensor.1abc0000000000_energy_cost_to_date").state)
+    base = Decimal(hass.states.get("sensor.1abc0000000000_standing_charge_to_date").state)
+    total = Decimal(hass.states.get("sensor.1abc0000000000_cost_to_date").state)
 
     assert energy + base == total
 
@@ -328,7 +330,9 @@ async def test_the_settlement_shows_what_has_been_paid_so_far(
     """PP-HA-016: a settlement figure is meaningless without the advances behind it."""
     await setup_entry(hass, tariff_entry)
 
-    attributes = hass.states.get("sensor.1abc0000000000_expected_settlement").attributes
+    attributes = hass.states.get(
+        "sensor.1abc0000000000_expected_settlement_billing_year"
+    ).attributes
     assert "advances_paid_eur" in attributes
     assert "advances_due_eur" in attributes
 
@@ -376,5 +380,96 @@ async def test_settlement_attributes_survive_being_stored(
 
     await setup_entry(hass, tariff_entry)
 
-    attributes = hass.states.get("sensor.1abc0000000000_expected_settlement").attributes
+    attributes = hass.states.get(
+        "sensor.1abc0000000000_expected_settlement_billing_year"
+    ).attributes
     json.dumps(dict(attributes))
+
+
+async def test_diagnostics_carry_the_cost_breakdown(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-019: a bug report about a wrong bill needs the figures behind it."""
+    import json
+
+    from custom_components.plusportal.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    await setup_entry(hass, tariff_entry)
+    diagnostics = await async_get_config_entry_diagnostics(hass, tariff_entry)
+
+    cost = diagnostics["meters"][0]["cost"]
+    assert cost["energy_eur"] is not None
+    assert cost["standing_charge_eur"] is not None
+    assert cost["projected_eur"] is not None
+    assert cost["billing_year"]
+    json.dumps(diagnostics), "diagnostics are downloaded as JSON"
+
+
+async def test_diagnostics_state_plainly_when_no_tariff_is_set(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-019: absent prices must read as absent, not as zero cost."""
+    from custom_components.plusportal.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    await setup_entry(hass, config_entry)
+    diagnostics = await async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diagnostics["meters"][0]["cost"] is None
+
+
+# ------------------------------------------------------ naming precision
+
+
+async def test_every_cost_sensor_names_its_reference_period(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-020: an amount without a period is unreadable.
+
+    1.25 EUR could be a month, a year or the part of the billing year that has
+    elapsed. Only the last is true, and the name has to say so.
+    """
+    await setup_entry(hass, tariff_entry)
+
+    periodic = {
+        "sensor.1abc0000000000_energy_cost_to_date": "to date",
+        "sensor.1abc0000000000_standing_charge_to_date": "to date",
+        "sensor.1abc0000000000_cost_to_date": "to date",
+        "sensor.1abc0000000000_projected_cost_billing_year": "billing year",
+        "sensor.1abc0000000000_expected_settlement_billing_year": "billing year",
+        "sensor.1abc0000000000_standing_charge_per_year": "per year",
+    }
+    for entity_id, expected in periodic.items():
+        state = hass.states.get(entity_id)
+        assert state is not None, f"{entity_id} missing"
+        name = state.attributes["friendly_name"]
+        assert expected in name.lower(), f"{name!r} does not say {expected!r}"
+
+
+async def test_the_configured_standing_charge_is_shown(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-020: entering 12 EUR/a and never seeing it back is confusing."""
+    await setup_entry(hass, tariff_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_standing_charge_per_year").state == "12.0"
+
+
+async def test_cost_sensors_carry_the_billing_year_they_refer_to(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-020: the exact dates, for anyone checking the arithmetic."""
+    await setup_entry(hass, tariff_entry)
+
+    for key in (
+        "energy_cost_to_date",
+        "standing_charge_to_date",
+        "cost_to_date",
+        "projected_cost_billing_year",
+    ):
+        attributes = hass.states.get(f"sensor.1abc0000000000_{key}").attributes
+        assert "billing_year_start" in attributes, key
+        assert "billing_year_end" in attributes, key

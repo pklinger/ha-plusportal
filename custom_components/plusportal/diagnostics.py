@@ -14,9 +14,44 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
 from .const import CONF_TENANT
-from .coordinator import PlusPortalConfigEntry
+from .coordinator import MeterData, PlusPortalConfigEntry
 
 TO_REDACT = {CONF_PASSWORD, CONF_USERNAME}
+
+
+def _cost(meter_data: MeterData) -> dict[str, Any] | None:
+    """Report the cost breakdown, or ``None`` when no tariff is configured.
+
+    A bug report about a wrong bill is unanswerable without these: the split
+    between energy and standing charge, what the year is projected at, and how
+    much of it is actually backed by data. Amounts are strings so the exact
+    Decimal survives the trip through JSON.
+    """
+    projection = meter_data.projection
+    if projection is None:
+        return None
+
+    start, end = projection.billing_year
+    observed = projection.observed
+    return {
+        "billing_year": f"{start.isoformat()}..{end.isoformat()}",
+        "coverage_percent": str(round(projection.coverage * 100, 2)),
+        "billable_kwh": str(observed.energy_kwh),
+        "not_billable_kwh": str(observed.excluded_kwh),
+        "energy_eur": str(observed.energy_eur),
+        "standing_charge_eur": str(observed.base_eur),
+        "total_eur": str(observed.total_eur),
+        "projected_kwh": str(round(projection.projected_kwh, 3)),
+        "projected_eur": str(projection.projected_eur),
+        "advances_paid_eur": _optional(projection.advances_paid_eur),
+        "advances_due_eur": _optional(projection.advances_due_eur),
+        "settlement_eur": _optional(projection.settlement_eur),
+    }
+
+
+def _optional(value: object) -> str | None:
+    """Keep an absent amount distinct from zero."""
+    return None if value is None else str(value)
 
 
 async def async_get_config_entry_diagnostics(
@@ -62,6 +97,7 @@ async def async_get_config_entry_diagnostics(
                         else None
                     ),
                 },
+                "cost": _cost(meter_data),
                 "overview": [
                     {
                         "obis": overview.obis,
