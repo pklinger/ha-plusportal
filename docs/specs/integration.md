@@ -174,3 +174,13 @@ added later — so the absence reads as the integration being incomplete.
 *Why:* the dashboard's source picker lists statistics by name among every entity in the
 system. `<meter> energy` sorts under the meter number, far from anything related, and says
 nothing in a non-English interface — the statistic was there and still could not be found.
+
+### PP-HA-026 — Each OBIS channel gets its own statistic series
+`plusportal:<account>_<meter>_<channel>_<series>`, with `import` and `export` as readable
+slugs. Only the billed import channel is priced, and only it feeds the sensors.
+
+*Why:* a meter with feed-in reports two channels. Merging them makes the Energy dashboard
+show a grid draw that includes energy the household exported — silently, as a number that
+merely looks high. Pricing an export series at the import rate would compound it. The
+sensors and every cost figure describe what was drawn from the grid, so they read the
+billed channel alone.

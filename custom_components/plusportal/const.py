@@ -30,6 +30,10 @@ CORRECTION_WINDOW: Final = timedelta(days=21)
 #: quarter-hourly data, and httpx would otherwise default to five.
 PORTAL_TIMEOUT: Final = 60.0
 
+#: OBIS codes for energy drawn from the grid, most specific first. These are
+#: the ones an invoice is based on; an export register is not.
+BILLED_OBIS: Final = ("1-0:1.8.0",)
+
 #: Statistic id suffixes, as they appear in the Energy dashboard.
 STATISTIC_ENERGY: Final = "energy"
 STATISTIC_COST: Final = "cost"
