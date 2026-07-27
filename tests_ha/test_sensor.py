@@ -223,6 +223,89 @@ async def test_missing_data_leaves_sensors_unknown_rather_than_zero(
     assert hass.states.get("sensor.1abc0000000000_last_day").state == STATE_UNKNOWN
 
 
+async def test_a_new_metering_point_id_gets_entities_without_a_restart(
+    hass: HomeAssistant, config_entry: MockConfigEntry, meter_point, channel, overview, session
+) -> None:
+    """PP-HA-029: entities are added when a later refresh reports on top of setup.
+
+    Entities are otherwise only created once, from the meter points the first
+    refresh saw. If a later refresh reports a metering point id that was not
+    among them — the portal has been observed to do this for the same
+    physical meter — the entities from the first id keep pointing at a key
+    that no longer exists in the coordinator's data and go unknown forever,
+    even though the account is still delivering current readings under the
+    new id.
+    """
+    readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 96, kwh="0.01")
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview])
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+        client.get_channels = AsyncMock(return_value=[channel])
+        client.get_interval_readings = AsyncMock(return_value=readings)
+        client.aclose = AsyncMock()
+        await setup_entry(hass, config_entry)
+
+        assert hass.states.get("sensor.1abc0000000000_this_month") is not None
+
+        from dataclasses import replace
+
+        rotated_point = replace(meter_point, id=2000)
+        rotated_channel = replace(channel, meter_point_id=2000)
+        rotated_overview = replace(overview, meter_point_id=2000)
+        client.get_meter_points = AsyncMock(return_value=[rotated_point])
+        client.get_channels = AsyncMock(return_value=[rotated_channel])
+        client.get_overview = AsyncMock(return_value=[rotated_overview])
+
+        coordinator = config_entry.runtime_data
+        with patch("custom_components.plusportal.statistics.async_add_external_statistics"):
+            await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    # The rotated id gets its own device, so its "this_month" entity carries a
+    # unique id ending in "_2000_this_month" rather than the original one.
+    registry = er.async_get(hass)
+    new_entity = next(
+        (
+            entry
+            for entry in registry.entities.values()
+            if entry.platform == DOMAIN and entry.unique_id.endswith("_2000_this_month")
+        ),
+        None,
+    )
+    assert new_entity is not None, "no entity was created for the rotated metering point id"
+    state = hass.states.get(new_entity.entity_id)
+    assert state is not None
+    assert state.state != STATE_UNKNOWN, "the rotated id must still report a value"
+
+
+async def test_the_legacy_ct_price_option_is_migrated_on_setup(
+    hass: HomeAssistant, meter_point, portal
+) -> None:
+    """PP-HA-028: 0.3.0 renamed the option key; an old entry must not go blank.
+
+    An entry created before the rename still carries ``energy_price_ct_per_kwh``.
+    Setup must read it, translate it into the new EUR/kWh key, and price the
+    cost sensors from it — not silently drop the tariff to "unconfigured".
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456-10001",
+        data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
+        options={"energy_price_ct_per_kwh": 35.0, CONF_BASE_PRICE: 12.0},
+    )
+    await setup_entry(hass, entry)
+
+    state = hass.states.get("sensor.1abc0000000000_energy_price")
+    assert state is not None, "the old option must still produce a priced tariff"
+    assert state.state == "0.35"
+    assert entry.options.get(CONF_ENERGY_PRICE) == pytest.approx(0.35)
+    assert "energy_price_ct_per_kwh" not in entry.options
+
+
 async def test_the_entry_unloads_cleanly(
     hass: HomeAssistant, config_entry: MockConfigEntry, portal
 ) -> None:

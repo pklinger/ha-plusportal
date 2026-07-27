@@ -303,17 +303,40 @@ async def async_setup_entry(
     entry: PlusPortalConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Create one set of sensors per metering point."""
+    """Create sensors for every metering point, and for any that appear later.
+
+    Entities are otherwise only ever created from the first refresh's meter
+    points. PP-HA-029: the portal has been observed to report a metering
+    point under a different id on a later poll for what is still the same
+    physical meter. Without this, the entities from the old id keep pointing
+    at a coordinator key that no longer exists and go unknown for good —
+    reloading the integration is the only way out. Adding entities for a
+    newly seen id here means the account keeps reporting current data on its
+    own; the old, now-orphaned entities can be removed with
+    scripts/ha_prune.py.
+    """
     coordinator = entry.runtime_data
     descriptions = CONSUMPTION_SENSORS
     if coordinator.tariff is not None:
         descriptions += COST_SENSORS
 
-    async_add_entities(
-        PlusPortalSensor(coordinator, meter_point_id, description)
-        for meter_point_id in coordinator.data
-        for description in descriptions
-    )
+    known: set[int] = set()
+
+    def _add_new_meters() -> None:
+        new_ids = [
+            meter_point_id for meter_point_id in coordinator.data if meter_point_id not in known
+        ]
+        if not new_ids:
+            return
+        known.update(new_ids)
+        async_add_entities(
+            PlusPortalSensor(coordinator, meter_point_id, description)
+            for meter_point_id in new_ids
+            for description in descriptions
+        )
+
+    _add_new_meters()
+    entry.async_on_unload(coordinator.async_add_listener(_add_new_meters))
 
 
 class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
