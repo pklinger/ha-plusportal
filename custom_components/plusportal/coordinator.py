@@ -20,6 +20,7 @@ from pyplusportal.exceptions import AuthenticationError, PlusPortalError
 from pyplusportal.models import Channel, MeterPoint, Overview, Reading
 
 from .const import (
+    BILLED_OBIS,
     CONF_SCAN_INTERVAL_HOURS,
     CONF_TENANT,
     CORRECTION_WINDOW,
@@ -42,10 +43,27 @@ class MeterData:
     meter_point: MeterPoint
     channels: list[Channel] = field(default_factory=list)
     overviews: list[Overview] = field(default_factory=list)
-    readings: list[Reading] = field(default_factory=list)
+    channel_readings: dict[str, list[Reading]] = field(default_factory=dict)
+    """Readings per OBIS channel. Kept apart because import and export must
+    never be summed, and only import is billed."""
 
     projection: Projection | None = None
     """Cost projection, or ``None`` while no tariff is configured."""
+
+    @property
+    def readings(self) -> list[Reading]:
+        """Readings of the billed channel, which is what the sensors report.
+
+        Consumption, data quality and every cost figure describe what was drawn
+        from the grid. An export channel belongs in its own statistic series, not
+        added into these.
+        """
+        for obis in BILLED_OBIS:
+            if obis in self.channel_readings:
+                return self.channel_readings[obis]
+        # An unfamiliar meter: fall back to whatever the portal offered first
+        # rather than reporting nothing at all.
+        return next(iter(self.channel_readings.values()), [])
 
     @property
     def overview(self) -> Overview | None:
@@ -143,10 +161,8 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
                 overviews=[o for o in overviews if o.meter_point_id == meter_point.id],
             )
             for channel in channels:
-                entry.readings.extend(
-                    await self._client.get_interval_readings(
-                        channel, self._window_start(entry, today), today
-                    )
+                entry.channel_readings[channel.obis] = await self._client.get_interval_readings(
+                    channel, self._window_start(entry, today), today
                 )
             if (tariff := self.tariff) is not None:
                 entry.projection = project_billing_year(entry.readings, tariff, today=today)

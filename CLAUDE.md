@@ -28,7 +28,9 @@ uv run --group ha mypy                         # strict, runs on 3.13 (HA uses 3
 uv run pytest -m live                          # real portal; skips without .env
 ```
 
-All five must pass before a commit. `uv run --group ha` is required for anything touching
+All five must pass before a commit. Both suites are measured for coverage and fail
+below 90 %: the library through pyproject.toml, the integration through the flags in
+`.claude/hooks/gates.sh` and CI. A feature without a test does not ship. `uv run --group ha` is required for anything touching
 `custom_components/` or `tests_ha/` — the plain venv has no Home Assistant.
 
 The two suites run under separate pytest configs on purpose:

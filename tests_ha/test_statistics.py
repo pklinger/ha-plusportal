@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from functools import partial
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.recorder.statistics import statistics_during_period
+from homeassistant.components.recorder.statistics import get_metadata, statistics_during_period
 from homeassistant.components.recorder.util import get_instance
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -31,8 +32,8 @@ from pyplusportal.models import Reading, ValueState
 
 from .conftest import quarter_hours
 
-ENERGY_ID = "plusportal:123456_10001_1000_energy"
-COST_ID = "plusportal:123456_10001_1000_cost"
+ENERGY_ID = "plusportal:123456_10001_1000_import_energy"
+COST_ID = "plusportal:123456_10001_1000_import_cost"
 
 
 async def flush(hass: HomeAssistant) -> None:
@@ -68,7 +69,7 @@ async def read_sums(hass: HomeAssistant, stat_id: str) -> list[tuple[datetime, f
 
 
 def meter_data(meter_point, readings: list[Reading]) -> dict[int, MeterData]:
-    return {1000: MeterData(meter_point=meter_point, readings=readings)}
+    return {1000: MeterData(meter_point=meter_point, channel_readings={"1-0:1.8.0": readings})}
 
 
 # ------------------------------------------------------------ bucketing
@@ -127,7 +128,10 @@ def test_a_dst_transition_does_not_collapse_two_hours_into_one():
 
 def test_statistic_ids_are_namespaced_to_the_integration():
     """External statistics must carry a domain prefix or the recorder rejects them."""
-    assert statistic_id("123456-10001", 1000, "energy") == "plusportal:123456_10001_1000_energy"
+    assert (
+        statistic_id("123456-10001", 1000, "import", "energy")
+        == "plusportal:123456_10001_1000_import_energy"
+    )
 
 
 # -------------------------------------------------------------- import
@@ -255,8 +259,8 @@ def test_statistic_ids_are_scoped_to_the_account() -> None:
     have a meter point 5821, and without the account in the id their energy
     would be summed into one series.
     """
-    first = statistic_id("123456-10001", 5821, "energy")
-    second = statistic_id("654321-20002", 5821, "energy")
+    first = statistic_id("123456-10001", 5821, "import", "energy")
+    second = statistic_id("654321-20002", 5821, "import", "energy")
 
     assert first != second
 
@@ -265,5 +269,101 @@ def test_a_statistic_id_is_accepted_by_home_assistant() -> None:
     """PP-HA-017: the recorder rejects ids outside its own grammar."""
     from homeassistant.components.recorder.statistics import valid_statistic_id
 
-    assert valid_statistic_id(statistic_id("123456-10001", 5821, "energy"))
-    assert valid_statistic_id(statistic_id("123456-10001", 5821, "cost"))
+    assert valid_statistic_id(statistic_id("123456-10001", 5821, "import", "energy"))
+    assert valid_statistic_id(statistic_id("123456-10001", 5821, "import", "cost"))
+
+
+async def test_the_statistic_name_says_what_it_is(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-025: the Energy dashboard picker lists it by name alone.
+
+    "<meter> energy" sorts under the meter number, away from everything else,
+    and says nothing in a non-English interface. The dashboard's own term for
+    the field it belongs in is "grid consumption".
+    """
+    config_entry.add_to_hass(hass)
+    readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
+
+    await async_publish_statistics(hass, config_entry, meter_data(meter_point, readings), None)
+    await flush(hass)
+
+    metadata = await get_instance(hass).async_add_executor_job(
+        partial(get_metadata, hass, statistic_source="plusportal")
+    )
+    names = {meta["statistic_id"]: meta["name"] for _, meta in metadata.values()}
+
+    assert names[ENERGY_ID] == "1ABC0000000000* grid consumption", names
+
+
+def test_a_channel_slug_is_readable_for_the_codes_that_matter() -> None:
+    """PP-HA-026: import and export must be told apart at a glance."""
+    from custom_components.plusportal.statistics import channel_slug
+
+    assert channel_slug("1-0:1.8.0") == "import"
+    assert channel_slug("1-0:2.8.0") == "export"
+
+
+def test_an_unknown_obis_code_still_yields_a_usable_slug() -> None:
+    """PP-HA-026: the recorder only accepts lowercase alphanumerics."""
+    from homeassistant.components.recorder.statistics import valid_statistic_id
+
+    from custom_components.plusportal.statistics import channel_slug
+
+    slug = channel_slug("7-20:99.33.0")
+
+    assert slug == "7_20_99_33_0"
+    assert valid_statistic_id(statistic_id("123456-10001", 1000, slug, "energy"))
+
+
+async def test_import_and_export_do_not_share_a_series(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-026: summing them would overstate what was drawn from the grid.
+
+    A meter with feed-in reports two channels. Merging them makes the Energy
+    dashboard show a grid draw that includes energy the household exported —
+    silently, as a number that merely looks high.
+    """
+    config_entry.add_to_hass(hass)
+    start = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    data = {
+        1000: MeterData(
+            meter_point=meter_point,
+            channel_readings={
+                "1-0:1.8.0": quarter_hours(start, 4, kwh="0.25"),
+                "1-0:2.8.0": quarter_hours(start, 4, kwh="1.00"),
+            },
+        )
+    }
+
+    await async_publish_statistics(hass, config_entry, data, None)
+    await flush(hass)
+
+    imported = await read_sums(hass, "plusportal:123456_10001_1000_import_energy")
+    exported = await read_sums(hass, "plusportal:123456_10001_1000_export_energy")
+
+    assert [v for _, v in imported] == [1.0], "1 kWh drawn"
+    assert [v for _, v in exported] == [4.0], "4 kWh fed in"
+
+
+async def test_a_single_channel_meter_gets_one_series(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-026: the common case stays a single, obvious series."""
+    config_entry.add_to_hass(hass)
+    data = {
+        1000: MeterData(
+            meter_point=meter_point,
+            channel_readings={
+                "1-0:1.8.0": quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
+            },
+        )
+    }
+
+    await async_publish_statistics(hass, config_entry, data, None)
+    await flush(hass)
+
+    assert [v for _, v in await read_sums(hass, "plusportal:123456_10001_1000_import_energy")] == [
+        1.0
+    ]
