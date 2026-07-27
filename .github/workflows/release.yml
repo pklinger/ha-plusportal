@@ -29,6 +29,11 @@ jobs:
           fi
           echo "Releasing $version"
 
+      # PP-SEC-007, PP-SEC-008: no release without a changelog entry, and a
+      # major-equivalent version move must say what breaks.
+      - name: Changelog has a release note for this version
+        run: uv run python scripts/check_release_notes.py "${GITHUB_REF_NAME#v}"
+
       - run: uv run pytest -q
       - run: uv run --group ha pytest -c pytest-ha.ini -q
 
@@ -57,7 +62,18 @@ jobs:
       # is two fewer ways for that one attempt to fail.
       - uses: pypa/gh-action-pypi-publish@release/v1
 
+      # The verify job already proved this section exists and is non-empty
+      # (PP-SEC-007); publish that text itself rather than --generate-notes'
+      # auto-summarised PR list, so what was checked is what users read.
+      - name: Extract the changelog entry for this release
+        run: |
+          uv run python -c "
+          from scripts.check_release_notes import sections
+          version = '${GITHUB_REF_NAME#v}'
+          print(sections(open('CHANGELOG.md').read())[version])
+          " > release-notes.md
+
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/* --notes-file release-notes.md
