@@ -174,3 +174,22 @@ added later — so the absence reads as the integration being incomplete.
 *Why:* the dashboard's source picker lists statistics by name among every entity in the
 system. `<meter> energy` sorts under the meter number, far from anything related, and says
 nothing in a non-English interface — the statistic was there and still could not be found.
+
+### PP-HA-026 — Each OBIS channel gets its own statistic series
+`plusportal:<account>_<meter>_<channel>_<series>`, with `import` and `export` as readable
+slugs. Only the billed import channel is priced, and only it feeds the sensors.
+
+*Why:* a meter with feed-in reports two channels. Merging them makes the Energy dashboard
+show a grid draw that includes energy the household exported — silently, as a number that
+merely looks high. Pricing an export series at the import rate would compound it. The
+sensors and every cost figure describe what was drawn from the grid, so they read the
+billed channel alone.
+
+### PP-HA-027 — The energy price is entered in EUR/kWh
+Not in cents, with free-form decimals.
+
+*Why:* bills quote cents, but Home Assistant works in euro everywhere else and the price
+entity already reports EUR/kWh. Asking for cents made the input the only place in the
+integration using a different unit, and the conversion an invisible step for anyone checking
+a figure by hand. The CLI's `PLUSPORTAL_ENERGY_PRICE_CT` keeps its unit: it is a separate
+surface with its own documented name, and renaming it would break anyone's `.env`.

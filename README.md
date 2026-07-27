@@ -70,7 +70,7 @@ Configure**, and change it there whenever your contract does.
 
 | Option | Meaning |
 |---|---|
-| Energy price (ct/kWh) | required for any cost figure |
+| Energy price (EUR/kWh) | required for any cost figure |
 | Standing charge (EUR/year) | apportioned across the billing year |
 | Monthly advance payment (EUR) | needed for the settlement forecast |
 | Billing year starts (MM-DD) | defaults to 01-01 |

@@ -21,11 +21,11 @@
         "title": "Tariff",
         "description": "Optional. Without prices you get consumption only; with them, cost and a settlement forecast as well. You can change this at any time under Configure.",
         "data": {
-          "energy_price_ct_per_kwh": "Energy price (ct/kWh)",
           "base_price_eur_per_year": "Standing charge (EUR/year)",
           "monthly_advance_eur": "Monthly advance payment (EUR)",
           "billing_year_start": "Billing year starts (MM-DD)",
-          "scan_interval_hours": "Update interval (hours)"
+          "scan_interval_hours": "Update interval (hours)",
+          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)"
         }
       }
     },
@@ -36,7 +36,7 @@
       "no_meters": "This account has no metering points, so there would be nothing to show.",
       "unknown": "Unexpected error. Check the log for details.",
       "invalid_billing_year_start": "Enter the billing year start as MM-DD, e.g. 01-01. It must exist in every year, so 02-29 is not allowed.",
-      "invalid_energy_price_ct_per_kwh": "Prices cannot be negative."
+      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative."
     },
     "abort": {
       "already_configured": "This account is already set up.",
@@ -49,17 +49,17 @@
         "title": "Tariff and polling",
         "description": "The portal provides no price data, so enter your tariff here to get cost and settlement figures. Leave the prices empty to track consumption only.",
         "data": {
-          "energy_price_ct_per_kwh": "Energy price (ct/kWh)",
           "base_price_eur_per_year": "Standing charge (EUR/year)",
           "monthly_advance_eur": "Monthly advance payment (EUR)",
           "billing_year_start": "Billing year starts (MM-DD)",
-          "scan_interval_hours": "Update interval (hours)"
+          "scan_interval_hours": "Update interval (hours)",
+          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)"
         }
       }
     },
     "error": {
       "invalid_billing_year_start": "Enter the billing year start as MM-DD, e.g. 01-01. It must exist in every year, so 02-29 is not allowed.",
-      "invalid_energy_price_ct_per_kwh": "Prices cannot be negative."
+      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative."
     }
   },
   "entity": {

@@ -190,7 +190,7 @@ async def test_the_tariff_can_be_configured_afterwards(hass: HomeAssistant, conf
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            CONF_ENERGY_PRICE: 34.5,
+            CONF_ENERGY_PRICE: 0.345,
             CONF_BASE_PRICE: 120.0,
             CONF_MONTHLY_ADVANCE: 50.0,
             CONF_BILLING_YEAR_START: "01-01",
@@ -199,7 +199,7 @@ async def test_the_tariff_can_be_configured_afterwards(hass: HomeAssistant, conf
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert config_entry.options[CONF_ENERGY_PRICE] == 34.5
+    assert config_entry.options[CONF_ENERGY_PRICE] == 0.345
 
 
 async def test_an_invalid_billing_year_start_is_rejected(hass: HomeAssistant, config_entry) -> None:
@@ -207,7 +207,7 @@ async def test_an_invalid_billing_year_start_is_rejected(hass: HomeAssistant, co
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_ENERGY_PRICE: 34.5, CONF_BILLING_YEAR_START: "02-29"}
+        result["flow_id"], {CONF_ENERGY_PRICE: 0.345, CONF_BILLING_YEAR_START: "02-29"}
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -251,12 +251,12 @@ async def test_the_tariff_step_stores_prices_as_options(hass: HomeAssistant, cli
     result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {CONF_ENERGY_PRICE: 34.5, CONF_BASE_PRICE: 120.0, CONF_MONTHLY_ADVANCE: 50.0},
+        {CONF_ENERGY_PRICE: 0.345, CONF_BASE_PRICE: 120.0, CONF_MONTHLY_ADVANCE: 50.0},
     )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["options"][CONF_ENERGY_PRICE] == 34.5
+    assert result["options"][CONF_ENERGY_PRICE] == 0.345
     assert result["data"][CONF_TENANT] == "123456"
 
 
@@ -282,7 +282,7 @@ async def test_an_invalid_tariff_is_rejected_during_setup_too(
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_ENERGY_PRICE: 34.5, CONF_BILLING_YEAR_START: "02-29"}
+        result["flow_id"], {CONF_ENERGY_PRICE: 0.345, CONF_BILLING_YEAR_START: "02-29"}
     )
 
     assert result["type"] is FlowResultType.FORM

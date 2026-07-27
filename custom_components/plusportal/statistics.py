@@ -58,18 +58,33 @@ def _recorder_available(hass: HomeAssistant) -> bool:
     return "recorder" in hass.config.components
 
 
-def statistic_id(account: str | None, meter_point_id: int, kind: str) -> str:
+#: OBIS codes that carry a readable meaning. Anything else falls back to the
+#: sanitised code, which is ugly but unambiguous.
+CHANNEL_SLUGS: dict[str, str] = {
+    "1-0:1.8.0": "import",
+    "1-0:2.8.0": "export",
+}
+
+
+def channel_slug(obis: str) -> str:
+    """Turn an OBIS code into an id fragment the recorder accepts."""
+    if (known := CHANNEL_SLUGS.get(obis)) is not None:
+        return known
+    return re.sub(r"[^a-z0-9]+", "_", obis.lower()).strip("_")
+
+
+def statistic_id(account: str | None, meter_point_id: int, channel: str, kind: str) -> str:
     """Build the external statistic id for one metering point and series.
 
-    The account is part of the id because a meter point id is only unique
-    inside one portal account: two configured accounts can both have a meter
-    point 5821, and sharing an id would sum their energy into one series.
+    The account and the channel are both part of the id. A meter point id is
+    only unique inside one portal account, and a meter point can carry several
+    channels — import and export — which must never share a series.
 
     The recorder only accepts lowercase alphanumerics and single underscores,
     so the account's separators are normalised.
     """
     scope = re.sub(r"[^a-z0-9]+", "_", (account or "unknown").lower()).strip("_")
-    return f"{DOMAIN}:{scope}_{meter_point_id}_{kind}"
+    return f"{DOMAIN}:{scope}_{meter_point_id}_{channel}_{kind}"
 
 
 def hourly_totals(readings: Iterable[Reading]) -> dict[datetime, Decimal]:
@@ -102,32 +117,40 @@ async def async_publish_statistics(
         return
 
     for meter_data in data.values():
-        totals = hourly_totals(meter_data.readings)
-        if not totals:
-            continue
+        meter = meter_data.meter_point
+        name = meter.name or str(meter.id)
 
-        name = meter_data.meter_point.name or str(meter_data.meter_point.id)
-        await _async_publish_series(
-            hass,
-            statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_ENERGY),
-            # The Energy dashboard's own term for the field this belongs in, so it
-            # is findable by what the user is looking for rather than by meter number.
-            f"{name} grid consumption",
-            UnitOfEnergy.KILO_WATT_HOUR,
-            "energy",
-            totals,
-        )
+        for obis, readings in meter_data.channel_readings.items():
+            totals = hourly_totals(readings)
+            if not totals:
+                continue
 
-        if tariff is not None:
-            price = tariff.energy_price_eur_per_kwh
+            channel = channel_slug(obis)
+            # The Energy dashboard's own terms, so a series is findable by what
+            # the user is looking for rather than by meter number.
+            label = "grid consumption" if channel == "import" else f"grid {channel}"
+
             await _async_publish_series(
                 hass,
-                statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_COST),
-                f"{name} grid cost",
-                CURRENCY_EUR,
-                None,
-                {bucket: value * price for bucket, value in totals.items()},
+                statistic_id(entry.unique_id, meter.id, channel, STATISTIC_ENERGY),
+                f"{name} {label}",
+                UnitOfEnergy.KILO_WATT_HOUR,
+                "energy",
+                totals,
             )
+
+            # Only what is drawn from the grid is billed at the energy price;
+            # pricing an export series at the same rate would be nonsense.
+            if tariff is not None and channel == "import":
+                price = tariff.energy_price_eur_per_kwh
+                await _async_publish_series(
+                    hass,
+                    statistic_id(entry.unique_id, meter.id, channel, STATISTIC_COST),
+                    f"{name} grid cost",
+                    CURRENCY_EUR,
+                    None,
+                    {bucket: value * price for bucket, value in totals.items()},
+                )
 
 
 async def _async_publish_series(
