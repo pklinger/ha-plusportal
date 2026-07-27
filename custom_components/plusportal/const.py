@@ -9,6 +9,9 @@ DOMAIN: Final = "plusportal"
 
 CONF_TENANT: Final = "tenant"
 CONF_ENERGY_PRICE: Final = "energy_price_eur_per_kwh"
+#: The option's name before 0.3.0, when the price was entered in ct/kWh.
+#: PP-HA-028: an entry created under the old key is migrated, not stranded.
+LEGACY_CONF_ENERGY_PRICE_CT: Final = "energy_price_ct_per_kwh"
 CONF_BASE_PRICE: Final = "base_price_eur_per_year"
 CONF_MONTHLY_ADVANCE: Final = "monthly_advance_eur"
 CONF_BILLING_YEAR_START: Final = "billing_year_start"
