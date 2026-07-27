@@ -9,7 +9,7 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
-## [Unreleased]
+## [0.3.1] - 2026-07-27
 
 ### Added
 - Per-channel statistics: import and export are now tracked as separate statistic series.
