@@ -193,3 +193,22 @@ entity already reports EUR/kWh. Asking for cents made the input the only place i
 integration using a different unit, and the conversion an invisible step for anyone checking
 a figure by hand. The CLI's `PLUSPORTAL_ENERGY_PRICE_CT` keeps its unit: it is a separate
 surface with its own documented name, and renaming it would break anyone's `.env`.
+
+### PP-HA-028 — An entry priced under the old ct/kWh key still has a tariff after upgrading
+Setup reads `energy_price_ct_per_kwh` if present, converts it and writes it back under
+`energy_price_eur_per_kwh`.
+
+*Why:* PP-HA-027 renamed the option key. Without a migration, an entry that already had a
+tariff configured finds nothing under the new key on the first setup after upgrading, and
+every cost sensor silently reports unknown — read as "unpriced", not as "broken", by anyone
+who did not just change anything.
+
+### PP-HA-029 — A metering point id that appears after setup still gets entities
+Entities are added for it without a Home Assistant restart or an integration reload.
+
+*Why:* entities are otherwise only ever created from the first refresh's meter points. The
+portal has been observed to report a metering point under a different id on a later poll for
+what is still the same physical meter and account. Without this, the entities bound to the
+old id keep reading a coordinator key that no longer exists and go unknown permanently — the
+account is still delivering current data, just under an id nothing is listening for. The
+old, now-orphaned entities can be removed with `scripts/ha_prune.py`.

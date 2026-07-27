@@ -9,7 +9,7 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
-## [Unreleased]
+## [0.3.1] - 2026-07-27
 
 ### Added
 - Per-channel statistics: import and export are now tracked as separate statistic series.
@@ -17,13 +17,20 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 - The tariff (energy price, base price, monthly advance) can be set during initial setup,
   not only afterwards through options.
 
+### Fixed
+- An entry with a tariff already configured under the old ct/kWh option key kept its price
+  after upgrading, instead of every cost sensor silently going unknown.
+- A metering point that the portal reports under a new id on a later poll now gets entities
+  of its own automatically, instead of the existing ones going unknown for good until the
+  integration is reloaded.
+
 ### Breaking
 - Statistic ids changed from `plusportal:<meter>_<kind>` to
   `plusportal:<account>_<meter>_<channel>_<kind>`, splitting import and export into separate
   series. Existing installations get new entities for the same meter; the old, single-series
   ones become orphaned and can be removed with `scripts/ha_prune.py`.
-- The energy price option is now read as EUR/kWh. A value previously entered in ct/kWh must
-  be divided by 100 when re-entering it after updating.
+- The energy price option is now read as EUR/kWh. An entry with a price already configured is
+  migrated automatically; nothing to do by hand.
 
 ## [0.1.0] - 2026-07-26
 
