@@ -33,3 +33,17 @@ version this repository never tested against.
 `strings.json`, `en.json` and `de.json` carry identical key sets.
 
 *Why:* a missing key renders as a raw identifier in the interface.
+
+### PP-SEC-007 — A release never ships without a changelog entry
+`CHANGELOG.md` must carry a section for the version being tagged, with non-empty content,
+before the release workflow is allowed to publish.
+
+*Why:* a HACS user decides whether to update from the release notes. No entry means no way
+to know what changed short of reading the diff themselves.
+
+### PP-SEC-008 — A major version bump states what breaks
+When the tag moves the major version (or, below 1.0.0, the minor — see CLAUDE.md), the
+changelog entry must contain a "Breaking" subsection with non-empty content.
+
+*Why:* below 1.0.0 a minor bump can still remove or change behaviour incompatibly. Silence
+in the changelog reads as "safe to update", which a breaking change is not.
