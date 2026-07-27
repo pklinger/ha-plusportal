@@ -14,13 +14,22 @@ case "$command" in
   (*) exit 0 ;;
 esac
 
-cd "$(git rev-parse --show-toplevel)" 2>/dev/null || exit 0
-branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+# Look at the push invocation alone, not the rest of a compound command.
+# Judging the whole string blocked pushing a feature branch when an unrelated
+# `gh pr edit --base ...` followed it, and blocked writing files that merely
+# describe this guard.
+push=$(printf '%s' "$command" | sed -n 's/.*\(git[[:space:]][[:space:]]*push[^;&|]*\).*/\1/p')
+[ -z "$push" ] && exit 0
 
-# Pushing main, either by being on it or by naming it as the refspec.
+cd "$(git rev-parse --show-toplevel)" 2>/dev/null || exit 0
+branch="${PUSH_GUARD_BRANCH:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}"
+
+# Deliberately blunt beyond that: any push while standing on the protected
+# branch, and any push naming it. Telling a flag from a refspec is where a
+# guard grows a hole, so it does not try — switch to the branch you mean.
 targets_main=0
 [ "$branch" = "main" ] && targets_main=1
-case "$command" in (*" main"*|*":main"*|*"HEAD:main"*) targets_main=1 ;; esac
+case "$push" in (*" main"*|*":main"*|*"HEAD:main"*) targets_main=1 ;; esac
 [ "$targets_main" = "0" ] && exit 0
 
 cat >&2 <<EOF

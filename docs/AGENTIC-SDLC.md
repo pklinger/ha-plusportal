@@ -36,8 +36,15 @@ issue  →  spec  →  failing test  →  code  →  gates  →  review  →  me
 | Versions in pyproject, manifest and the pin agree | `tests/test_packaging.py` | gates, CI |
 | No account data in a commit | `.claude/hooks/no-account-data.sh` | agent, pre-commit |
 | No push while the gates are red | `.githooks/pre-push`, `.claude/hooks/gates-before-push.sh` | shell and agent |
+| No release without a changelog entry, or without saying what breaks | `scripts/check_release_notes.py`, `.claude/hooks/no-release-without-notes.sh` | CI and agent |
 | Formatting | `.claude/hooks/format-python.sh` | after every file write |
+| The guards themselves | `tests_harness/test_push_guard.sh`, `tests_harness/test_release_notes_guard.sh` | gates |
 | Manifest and HACS validity | hassfest, `hacs/action` | CI |
+
+The guards are tested too. The push guard was rewritten after it refused a legitimate
+command — it judged the whole compound line, so a `main` mentioned in an unrelated
+`gh pr edit` blocked the push beside it. A guard that misfires gets worked around, which
+is worse than not having it.
 
 Three of these exist because the thing they prevent already happened here: account data
 reached tracked files, a test asserted a value equals itself, and `hacs.json` carried a key

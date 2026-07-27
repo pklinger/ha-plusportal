@@ -22,6 +22,14 @@ uv run pytest tests/test_packaging.py    # proves they agree
 ./.claude/hooks/gates.sh                 # everything else
 ```
 
+## Write the changelog entry
+
+Rename `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and fill it in. If
+the version move is major-equivalent (a major bump, or below 1.0.0 a minor bump — see
+CLAUDE.md), it must include a `### Breaking` subsection, non-empty, saying what breaks or
+that nothing does. `scripts/check_release_notes.py X.Y.Z` checks this locally; the release
+workflow and an agent hook both refuse a tag that fails it — PP-SEC-007, PP-SEC-008.
+
 ## Tag
 
 ```bash
@@ -30,9 +38,10 @@ git tag vX.Y.Z
 git push origin main --tags
 ```
 
-The workflow verifies the tag matches the project version, runs both suites, builds,
-publishes to PyPI through Trusted Publishing and creates the GitHub release. No API token
-is stored anywhere; see RELEASING.md for the one-time PyPI setup.
+The workflow verifies the tag matches the project version, verifies the changelog entry,
+runs both suites, builds, publishes to PyPI through Trusted Publishing and creates the
+GitHub release with that changelog entry as its notes. No API token is stored anywhere; see
+RELEASING.md for the one-time PyPI setup.
 
 ## Before the first public release
 
