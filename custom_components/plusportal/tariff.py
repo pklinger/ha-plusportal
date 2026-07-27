@@ -23,7 +23,9 @@ def parse_billing_year_start(value: Any) -> tuple[int, int]:
     Raises ``ValueError`` for anything the cost model would not accept, so the
     config flow can reject it while the user is still looking at the form.
     """
-    text = str(value or DEFAULT_BILLING_YEAR_START).strip()
+    # Stripped before the fallback, so a field containing only spaces behaves
+    # like an empty one rather than raising.
+    text = str(value or "").strip() or DEFAULT_BILLING_YEAR_START
     month_text, separator, day_text = text.partition("-")
     if not separator:
         raise ValueError(f"{text!r} is not in MM-DD form")

@@ -69,10 +69,58 @@ def _price_selector(maximum: float, step: float = 0.01) -> NumberSelector:
     )
 
 
+def tariff_schema(current: Mapping[str, Any]) -> vol.Schema:
+    """Build the tariff form, pre-filled with whatever is already set.
+
+    Shared by the setup flow and the options flow so the two can never offer
+    different fields or validate differently.
+    """
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_ENERGY_PRICE,
+                description={"suggested_value": current.get(CONF_ENERGY_PRICE)},
+            ): _price_selector(200.0),
+            vol.Optional(
+                CONF_BASE_PRICE,
+                description={"suggested_value": current.get(CONF_BASE_PRICE)},
+            ): _price_selector(10_000.0),
+            vol.Optional(
+                CONF_MONTHLY_ADVANCE,
+                description={"suggested_value": current.get(CONF_MONTHLY_ADVANCE)},
+            ): _price_selector(10_000.0),
+            vol.Optional(
+                CONF_BILLING_YEAR_START,
+                default=current.get(CONF_BILLING_YEAR_START, DEFAULT_BILLING_YEAR_START),
+            ): TextSelector(),
+            vol.Optional(
+                CONF_SCAN_INTERVAL_HOURS,
+                default=current.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=MIN_SCAN_INTERVAL_HOURS,
+                    max=MAX_SCAN_INTERVAL_HOURS,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+        }
+    )
+
+
+def clean_tariff(user_input: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop empty fields, so an unset price stays absent rather than becoming 0."""
+    return {key: value for key, value in user_input.items() if value is not None}
+
+
 class PlusPortalConfigFlow(ConfigFlow, domain=DOMAIN):
     """Walk the user through connecting one PlusPortal account."""
 
     VERSION = 1
+
+    def __init__(self) -> None:
+        """Hold the verified credentials until the tariff step completes."""
+        self._credentials: dict[str, Any] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Collect the tenant and credentials, and verify them against the portal."""
@@ -94,11 +142,41 @@ class PlusPortalConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     await self.async_set_unique_id(f"{user_input[CONF_TENANT]}-{user_id}")
                     self._abort_if_unique_id_configured()
-                    return self.async_create_entry(
-                        title=f"PlusPortal {user_input[CONF_TENANT]}", data=user_input
-                    )
+                    self._credentials = dict(user_input)
+                    return await self.async_step_tariff()
 
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=STEP_USER_SCHEMA,
+            errors=errors,
+            # Half the entities depend on a tariff. Someone who finishes setup
+            # without one sees consumption and nothing to suggest cost exists,
+            # is optional, or can be added later.
+            description_placeholders={"tariff_hint": "1"},
+        )
+
+    async def async_step_tariff(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Offer the tariff while the user is already here.
+
+        Every field is optional: submitting an empty form tracks consumption
+        only, and the same form is available afterwards under Configure.
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            cleaned = clean_tariff(user_input)
+            try:
+                _validate_tariff(cleaned)
+            except ValueError as err:
+                errors[str(err)] = f"invalid_{err}"
+            else:
+                return self.async_create_entry(
+                    title=f"PlusPortal {self._credentials[CONF_TENANT]}",
+                    data=self._credentials,
+                    options=cleaned,
+                )
+
+        return self.async_show_form(step_id="tariff", data_schema=tariff_schema({}), errors=errors)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """Start over when the portal stops accepting the stored password."""
@@ -165,7 +243,7 @@ class PlusPortalOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            cleaned = {key: value for key, value in user_input.items() if value is not None}
+            cleaned = clean_tariff(user_input)
             try:
                 _validate_tariff(cleaned)
             except ValueError as err:
@@ -177,38 +255,7 @@ class PlusPortalOptionsFlow(OptionsFlow):
 
     def _schema(self) -> vol.Schema:
         """Build the options schema, pre-filled with the current settings."""
-        options = self.config_entry.options
-        return vol.Schema(
-            {
-                vol.Optional(
-                    CONF_ENERGY_PRICE,
-                    description={"suggested_value": options.get(CONF_ENERGY_PRICE)},
-                ): _price_selector(200.0),
-                vol.Optional(
-                    CONF_BASE_PRICE,
-                    description={"suggested_value": options.get(CONF_BASE_PRICE)},
-                ): _price_selector(10_000.0),
-                vol.Optional(
-                    CONF_MONTHLY_ADVANCE,
-                    description={"suggested_value": options.get(CONF_MONTHLY_ADVANCE)},
-                ): _price_selector(10_000.0),
-                vol.Optional(
-                    CONF_BILLING_YEAR_START,
-                    default=options.get(CONF_BILLING_YEAR_START, DEFAULT_BILLING_YEAR_START),
-                ): TextSelector(),
-                vol.Optional(
-                    CONF_SCAN_INTERVAL_HOURS,
-                    default=options.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=MIN_SCAN_INTERVAL_HOURS,
-                        max=MAX_SCAN_INTERVAL_HOURS,
-                        step=1,
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
-            }
-        )
+        return tariff_schema(self.config_entry.options)
 
 
 def _validate_tariff(options: Mapping[str, Any]) -> None:

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect to PlusPortal",
-        "description": "Your tenant number is the six-digit code at the start of your portal address, for example 123456.",
+        "description": "Your tenant number is the six-digit code at the start of your portal address, for example 123456.\n\nThe next step asks for your tariff. It is optional — without it you get consumption only, and you can add or change prices at any time under Configure.",
         "data": {
           "tenant": "Tenant number",
           "username": "Username (e-mail address or customer number)",
@@ -16,6 +16,17 @@
         "data": {
           "password": "Password"
         }
+      },
+      "tariff": {
+        "title": "Tariff",
+        "description": "Optional. Without prices you get consumption only; with them, cost and a settlement forecast as well. You can change this at any time under Configure.",
+        "data": {
+          "energy_price_ct_per_kwh": "Energy price (ct/kWh)",
+          "base_price_eur_per_year": "Standing charge (EUR/year)",
+          "monthly_advance_eur": "Monthly advance payment (EUR)",
+          "billing_year_start": "Billing year starts (MM-DD)",
+          "scan_interval_hours": "Update interval (hours)"
+        }
       }
     },
     "error": {
@@ -23,7 +34,9 @@
       "cannot_connect": "The portal could not be reached.",
       "invalid_tenant": "Not a tenant number (e.g. 123456) or portal address.",
       "no_meters": "This account has no metering points, so there would be nothing to show.",
-      "unknown": "Unexpected error. Check the log for details."
+      "unknown": "Unexpected error. Check the log for details.",
+      "invalid_billing_year_start": "Enter the billing year start as MM-DD, e.g. 01-01. It must exist in every year, so 02-29 is not allowed.",
+      "invalid_energy_price_ct_per_kwh": "Prices cannot be negative."
     },
     "abort": {
       "already_configured": "This account is already set up.",

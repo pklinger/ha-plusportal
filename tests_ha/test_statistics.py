@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from functools import partial
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.recorder.statistics import statistics_during_period
+from homeassistant.components.recorder.statistics import get_metadata, statistics_during_period
 from homeassistant.components.recorder.util import get_instance
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -267,3 +268,26 @@ def test_a_statistic_id_is_accepted_by_home_assistant() -> None:
 
     assert valid_statistic_id(statistic_id("123456-10001", 5821, "energy"))
     assert valid_statistic_id(statistic_id("123456-10001", 5821, "cost"))
+
+
+async def test_the_statistic_name_says_what_it_is(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-025: the Energy dashboard picker lists it by name alone.
+
+    "<meter> energy" sorts under the meter number, away from everything else,
+    and says nothing in a non-English interface. The dashboard's own term for
+    the field it belongs in is "grid consumption".
+    """
+    config_entry.add_to_hass(hass)
+    readings = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25")
+
+    await async_publish_statistics(hass, config_entry, meter_data(meter_point, readings), None)
+    await flush(hass)
+
+    metadata = await get_instance(hass).async_add_executor_job(
+        partial(get_metadata, hass, statistic_source="plusportal")
+    )
+    names = {meta["statistic_id"]: meta["name"] for _, meta in metadata.values()}
+
+    assert names[ENERGY_ID] == "1ABC0000000000* grid consumption", names

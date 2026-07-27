@@ -110,7 +110,9 @@ async def async_publish_statistics(
         await _async_publish_series(
             hass,
             statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_ENERGY),
-            f"{name} energy",
+            # The Energy dashboard's own term for the field this belongs in, so it
+            # is findable by what the user is looking for rather than by meter number.
+            f"{name} grid consumption",
             UnitOfEnergy.KILO_WATT_HOUR,
             "energy",
             totals,
@@ -121,7 +123,7 @@ async def async_publish_statistics(
             await _async_publish_series(
                 hass,
                 statistic_id(entry.unique_id, meter_data.meter_point.id, STATISTIC_COST),
-                f"{name} cost",
+                f"{name} grid cost",
                 CURRENCY_EUR,
                 None,
                 {bucket: value * price for bucket, value in totals.items()},

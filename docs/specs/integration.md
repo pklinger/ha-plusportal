@@ -152,3 +152,25 @@ configured.
 *Why:* every cost figure is measured against this period, and it is otherwise only visible
 by opening a sensor's attributes one at a time. As dates, Home Assistant formats them in the
 user's locale.
+
+### PP-HA-023 — The tariff is offered during setup
+A second, entirely optional step after the credentials, writing to the same options the
+configure dialog edits and validated by the same rules.
+
+*Why:* prices were only reachable after setup, through a dialog people had to know existed.
+Asking once, while the user is already there, is the difference between cost figures
+appearing and a tariff being entered and then apparently ignored.
+
+### PP-HA-024 — The first setup step says the tariff is optional and can wait
+Before any prices are asked for.
+
+*Why:* half the entities depend on a tariff. Someone who finishes setup without one sees
+consumption and nothing to suggest that cost exists, that it is optional, or that it can be
+added later — so the absence reads as the integration being incomplete.
+
+### PP-HA-025 — Statistics are named by what they are, not by their meter
+`<meter> grid consumption` and `<meter> grid cost`, using the Energy dashboard's own term.
+
+*Why:* the dashboard's source picker lists statistics by name among every entity in the
+system. `<meter> energy` sorts under the meter number, far from anything related, and says
+nothing in a non-English interface — the statistic was there and still could not be found.
