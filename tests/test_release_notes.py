@@ -133,8 +133,9 @@ def _tag(repo: Path, name: str) -> None:
 def _check_in(repo: Path, version: str, changelog: str) -> str | None:
     """Run check() with ROOT pointed at ``repo``, so previous_tag() sees its tags."""
     original_root = check_release_notes.ROOT
-    check_release_notes.ROOT = repo
+    check_release_notes.ROOT = repo  # type: ignore[attr-defined]
     try:
-        return check_release_notes.check(version, changelog)
+        result: str | None = check_release_notes.check(version, changelog)
+        return result
     finally:
-        check_release_notes.ROOT = original_root
+        check_release_notes.ROOT = original_root  # type: ignore[attr-defined]
