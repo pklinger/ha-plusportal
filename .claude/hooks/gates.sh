@@ -17,6 +17,7 @@ run() {
 }
 
 echo "gates:"
+run "harness"       ./tests_harness/test_push_guard.sh
 run "ruff check"    uv run ruff check src tests tests_ha custom_components
 run "ruff format"   uv run ruff format --check src tests tests_ha custom_components
 run "mypy"          uv run --group ha mypy
