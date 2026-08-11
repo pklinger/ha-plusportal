@@ -37,15 +37,18 @@ changes.
 
 ### Through HACS
 
-This repository is not in the default HACS catalogue, so it has to be added once as a
-custom repository — searching HACS for "plusportal" finds nothing until you do.
+This repository is not in the default HACS catalogue yet, so it has to be added once as a
+custom repository — searching HACS for "plusportal" finds nothing until you do. The badge
+opens it directly in your own instance and offers to add it; the manual route is below it.
+
+[![Open this repository in HACS on your own Home Assistant instance.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pklinger&repository=ha-plusportal&category=integration)
 
 1. **HACS** in the sidebar, then the **⋮** menu at the top right.
 2. **Custom repositories**.
 3. Repository: `https://github.com/pklinger/ha-plusportal`, type **Integration**. **Add**.
 4. **PlusPortal** now appears in the list. Open it and choose **Download**.
 5. Restart Home Assistant.
-5. **Settings → Devices & Services → Add Integration → PlusPortal**, then enter:
+6. **Settings → Devices & Services → Add Integration → PlusPortal**, then enter:
 
    | Field | Where to find it |
    |---|---|

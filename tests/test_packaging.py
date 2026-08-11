@@ -18,8 +18,27 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "custom_components" / "plusportal" / "manifest.json"
 PYPROJECT = ROOT / "pyproject.toml"
+HACS_JSON = ROOT / "hacs.json"
 
 DISTRIBUTION = "pyplusportal"
+
+#: Every key HACS accepts in `hacs.json`, mirrored from HACS_MANIFEST_JSON_SCHEMA
+#: in hacs/integration. That schema is PREVENT_EXTRA: an unknown key is not
+#: ignored, it invalidates the whole file — which has happened here once.
+HACS_MANIFEST_KEYS = frozenset(
+    {
+        "content_in_root",
+        "country",
+        "filename",
+        "hacs",
+        "hide_default_branch",
+        "homeassistant",
+        "name",
+        "persistent_directory",
+        "render_readme",
+        "zip_release",
+    }
+)
 
 
 @pytest.fixture
@@ -30,6 +49,12 @@ def pyproject() -> dict[str, Any]:
 @pytest.fixture
 def manifest() -> dict[str, Any]:
     loaded: dict[str, Any] = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return loaded
+
+
+@pytest.fixture
+def hacs_json() -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads(HACS_JSON.read_text(encoding="utf-8"))
     return loaded
 
 
@@ -75,6 +100,23 @@ def test_the_version_is_semver_because_hacs_compares_releases(manifest):
     major, minor, patch = manifest["version"].split(".")
 
     assert all(part.isdigit() for part in (major, minor, patch))
+
+
+def test_hacs_json_carries_only_keys_hacs_accepts(hacs_json):
+    """PP-SEC-009: one unknown key invalidates the file, it is not ignored."""
+    unknown = sorted(set(hacs_json) - HACS_MANIFEST_KEYS)
+
+    assert not unknown, f"hacs.json carries keys HACS rejects: {', '.join(unknown)}"
+
+
+def test_hacs_json_names_the_integration_because_hacs_requires_it(hacs_json):
+    """PP-SEC-009."""
+    assert hacs_json.get("name")
+
+
+def test_hacs_json_declares_the_country_the_portal_serves(hacs_json):
+    """PP-SEC-010: PlusPortal is sold to German utilities only."""
+    assert hacs_json.get("country") == "DE"
 
 
 def test_translations_cover_every_key_the_ui_declares():
