@@ -9,6 +9,14 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.3.2] - 2026-08-12
+
+### Changed
+- `hacs.json` declares Germany as the country the integration serves, which HACS asks of
+  repositories with a limited audience and reads from the released file — hence a release
+  of its own. Neither the integration nor the library changed; updating gains you nothing
+  and costs you nothing.
+
 ## [0.3.1] - 2026-07-27
 
 ### Added
