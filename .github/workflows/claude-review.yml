@@ -37,7 +37,13 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Advisory means advisory: this step must not be able to fail the pull
+      # request. It already did once — the review finished its work and posted
+      # nothing, because it took 21 turns against a cap of 20 and the action
+      # treats that as an error. A red check nobody may act on trains everyone
+      # to ignore red checks.
       - if: steps.credential.outputs.present == 'true'
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -63,5 +69,5 @@ jobs:
             Be specific and cite file:line. Do not restate the diff. If it is
             sound, say so briefly rather than inventing findings.
           claude_args: |
-            --max-turns 20
+            --max-turns 30
             --model claude-opus-5
