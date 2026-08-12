@@ -55,5 +55,14 @@ check 0 "no push in the command at all"      "gh pr edit 3 --base $DEFAULT"    "
 check 2 "--no-verify does not open a way past this one" \
         "git push --no-verify origin $DEFAULT"                                 "feat/x"
 check 0 "an unrelated command"               "ls -la"                          "feat/x"
+# A heredoc body is text the command writes, not a command it runs. Writing down
+# what the guard refuses — in a commit message, a release runbook, this file —
+# must not itself be refused.
+check 0 "a commit whose message quotes a push at the default branch" \
+        "$(printf 'git commit -F - <<%sMSG%s\nSay what the guard refuses\n\n  git push origin %s --tags\n\nMSG\n' "'" "'" "$DEFAULT")" \
+        "docs/x"
+check 2 "a real push still counts when a heredoc precedes it" \
+        "$(printf 'cat <<%sEOF%s > note.txt\nhello\nEOF\ngit push origin %s\n' "'" "'" "$DEFAULT")" \
+        "docs/x"
 
 exit $fail

@@ -7,7 +7,31 @@
 set -uo pipefail
 
 payload=$(cat)
-command=$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("command",""))' 2>/dev/null)
+
+# A heredoc body is text the command writes, not a command it runs. Left in, a
+# commit message or a runbook that quotes the very push this guard refuses gets
+# refused for quoting it — which is how the release runbook came to describe a
+# push nobody could perform. The line opening the heredoc is kept; only what it
+# feeds is dropped.
+command=$(printf '%s' "$payload" | python3 -c '
+import json, re, sys
+
+command = json.load(sys.stdin).get("tool_input", {}).get("command", "")
+# \x27 is the apostrophe, spelled this way because this program reaches
+# python3 inside a single-quoted shell string.
+opens = re.compile(r"<<-?\s*([\x27\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+kept, terminator = [], None
+for line in command.splitlines():
+    if terminator is None:
+        kept.append(line)
+        match = opens.search(line)
+        if match:
+            terminator = match.group(2)
+    elif line.strip() == terminator:
+        terminator = None
+print("\n".join(kept))
+' 2>/dev/null)
 
 case "$command" in
   (*"git push"*) ;;
