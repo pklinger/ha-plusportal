@@ -47,3 +47,19 @@ changelog entry must contain a "Breaking" subsection with non-empty content.
 
 *Why:* below 1.0.0 a minor bump can still remove or change behaviour incompatibly. Silence
 in the changelog reads as "safe to update", which a breaking change is not.
+
+### PP-SEC-009 — `hacs.json` carries only keys HACS accepts
+The file is validated against a schema that rejects unknown keys rather than ignoring them,
+and must name the integration.
+
+*Why:* one stray key does not degrade gracefully — it invalidates the whole file, and HACS
+then treats the repository as broken rather than as misconfigured. This repository shipped
+exactly that once.
+
+### PP-SEC-010 — `hacs.json` declares the country the portal serves
+`"country": "DE"`.
+
+*Why:* PlusPortal is sold to German utilities only, and HACS asks repositories with a
+limited audience to say so — it is a condition for inclusion in the default catalogue, and
+it keeps the entry out of the way of users who filter their store by another country. HACS
+reads the key from the released file, so it only takes effect with the next release.
