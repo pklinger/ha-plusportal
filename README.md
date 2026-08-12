@@ -1,10 +1,34 @@
-# ha-plusportal — Home Assistant integration for PlusPortal
+<div align="center">
 
+# ha-plusportal
+
+**Your PlusPortal electricity meter, in Home Assistant — with a cent-accurate bill projection.**
+
+[![CI](https://github.com/pklinger/ha-plusportal/actions/workflows/ci.yml/badge.svg)](https://github.com/pklinger/ha-plusportal/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pyplusportal?label=pyplusportal)](https://pypi.org/project/pyplusportal/)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.2.0%2B-41BDF5)](https://www.home-assistant.io/)
+[![HACS](https://img.shields.io/badge/HACS-custom%20repository-41BDF5)](#through-hacs)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Built with AI](https://img.shields.io/badge/built%20with-AI%20%2B%20human%20review-8A63D2)](#built-with-ai)
+
+[Install](#installing-it-in-home-assistant) ·
+[What you get](#tariff-and-what-appears) ·
+[Energy dashboard](#the-energy-dashboard) ·
+[CLI](#using-the-client-on-its-own) ·
+[Built with AI](#built-with-ai) ·
+[Legal](#legal)
+
+</div>
+
+> [!IMPORTANT]
 > **Unofficial.** This is an independent, community-built project. It is not affiliated
 > with, endorsed by, or supported by **Thüga SmartService GmbH** — who develop and operate
 > PlusPortal — nor by any utility running a PlusPortal instance. "PlusPortal" is their
 > product name and is used here only to describe what this software connects to. For
 > problems with this integration, open an issue here; do not contact your utility.
+
+## What it does
 
 Read your **metered** electricity consumption out of a PlusPortal energy customer portal
 and get it into Home Assistant — including a cent-accurate bill projection.
@@ -13,6 +37,12 @@ PlusPortal is a white-label customer portal operated by many German utilities, e
 its own subdomain of the form `https://<tenant>.plusportal.de`. This project uses your own
 account and your own data, through the same API the official web interface uses, so it
 works for **any** tenant.
+
+- ⚡ **Quarter-hourly meter data** aggregated into Home Assistant long-term statistics
+- 💶 **Cost, standing charge and settlement forecast** for your billing year
+- 🔁 **Self-correcting** — each refresh re-reads a rolling three-week window
+- 🧾 **Billing-accurate** — provisional readings are excluded, exactly as the supplier bills
+- 🐍 **Standalone Python client + CLI**, usable entirely without Home Assistant
 
 The repository contains two independent layers:
 
@@ -25,8 +55,9 @@ The client is deliberately usable and testable on its own, without Home Assistan
 
 ## Installing it in Home Assistant
 
-Requires Home Assistant **2026.2.0** or newer — the integration uses statistics APIs that
-changed in that release.
+> [!NOTE]
+> Requires Home Assistant **2026.2.0** or newer — the integration uses statistics APIs that
+> changed in that release.
 
 The interface is available in English and German and follows whatever language Home
 Assistant is set to; there is nothing to choose. Field and entity names in this document are
@@ -56,8 +87,9 @@ opens it directly in your own instance and offers to add it; the manual route is
    | Username | your portal login — often the customer number, not an e-mail |
    | Password | your portal password |
 
-Home Assistant installs the `pyplusportal` library from PyPI on first setup. If that fails,
-the entry will report "not ready" — check the log rather than retrying.
+> [!TIP]
+> Home Assistant installs the `pyplusportal` library from PyPI on first setup. If that
+> fails, the entry will report "not ready" — check the log rather than retrying.
 
 ### Without HACS
 
@@ -172,6 +204,25 @@ the requirement is already satisfied.
 On first start, open <http://localhost:8124>, create a throwaway owner account and add the
 **PlusPortal** integration with the same values as your `.env`. Home Assistant's state
 lives in `.dev/`, which is gitignored: once configured it holds your portal password.
+
+## Built with AI
+
+**Most of the code, tests and documentation in this repository were written by an AI coding
+agent (Claude), under human direction and human review.**
+
+That is stated openly because it changes what you should check — so the project is built so
+that no claim rests on an agent's say-so:
+
+| Guard rail | What it stops |
+|---|---|
+| Spec ids in `docs/specs/`, mechanically tied to tests | behaviour changing without a written requirement |
+| Test-first, with the failing run recorded | tests that pass the moment they are written |
+| ruff, `mypy --strict`, two suites, ≥ 90 % coverage | anything merging red or untested |
+| A live suite reconciling against a real portal | plausible-looking numbers that are wrong |
+| `main` accepts pull requests only, with review | unreviewed code reaching users |
+
+The full loop, and what enforces each step, is in
+[docs/AGENTIC-SDLC.md](docs/AGENTIC-SDLC.md).
 
 ## Legal
 
