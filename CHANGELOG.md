@@ -9,6 +9,17 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.3.3] - 2026-08-13
+
+### Changed
+- Documentation only, and released because documentation is not visible otherwise: HACS
+  renders a repository's README from its latest release, not from the default branch. This
+  publishes the rewritten front page — what the integration produces, stated before the
+  legal notice — and its disclosure that most of the code, tests and prose here were
+  written by an AI agent under human direction, next to the guard rails that make that
+  checkable. The release runbook is corrected too. Neither the integration nor the library
+  changed; updating gains you nothing and costs you nothing.
+
 ## [0.3.2] - 2026-08-12
 
 ### Changed
