@@ -8,6 +8,10 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.httpx_client import (
+    HassHttpXAsyncClient,
+    create_async_httpx_client,
+)
 
 from custom_components.plusportal.const import (
     CONF_BASE_PRICE,
@@ -16,6 +20,7 @@ from custom_components.plusportal.const import (
     CONF_MONTHLY_ADVANCE,
     CONF_TENANT,
     DOMAIN,
+    PORTAL_TIMEOUT,
 )
 from pyplusportal.exceptions import AuthenticationError, PortalUnavailableError
 
@@ -145,6 +150,65 @@ async def test_an_account_without_any_metering_point_is_rejected(
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "no_meters"}
+
+
+# ------------------------------------------------------- the HTTP client
+
+
+@pytest.fixture
+def ha_httpx():
+    """Watch the flow ask Home Assistant for a client, and let it really build one."""
+    with patch(
+        "custom_components.plusportal.config_flow.create_async_httpx_client",
+        wraps=create_async_httpx_client,
+    ) as builder:
+        yield builder
+
+
+async def test_verification_borrows_the_client_from_home_assistant(
+    hass: HomeAssistant, ha_httpx, meter_point, session, caplog
+) -> None:
+    """PP-HA-018: building one here loads the CA bundle inside the event loop."""
+    with patch(
+        "custom_components.plusportal.config_flow.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value.__aenter__.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert ha_httpx.call_args.kwargs["auto_cleanup"] is False
+    assert ha_httpx.call_args.kwargs["timeout"] == PORTAL_TIMEOUT
+    borrowed = factory.call_args.kwargs["client"]
+    assert isinstance(borrowed, HassHttpXAsyncClient)
+    assert borrowed.is_closed
+    assert "closes the Home Assistant httpx client" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "error",
+    [AuthenticationError("nope"), PortalUnavailableError("down"), RuntimeError("boom")],
+)
+async def test_the_borrowed_client_is_closed_even_when_verification_fails(
+    hass: HomeAssistant, ha_httpx, error: Exception, caplog
+) -> None:
+    """PP-HA-018: every branch returns before the close, so each needs covering."""
+    with patch(
+        "custom_components.plusportal.config_flow.PlusPortalClient", autospec=True
+    ) as factory:
+        factory.return_value.__aenter__.return_value.login = AsyncMock(side_effect=error)
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert factory.call_args.kwargs["client"].is_closed
+    assert "closes the Home Assistant httpx client" not in caplog.text
 
 
 # ------------------------------------------------------------------ reauth

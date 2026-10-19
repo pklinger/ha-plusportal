@@ -100,17 +100,27 @@ payments and rests on five weeks of data.
 can both have meter point 5821, and a shared id would sum two households into one series —
 visible only as a graph that looks too high.
 
-### PP-HA-018 — The HTTP client comes from Home Assistant
-`get_async_client(hass)`, not one constructed by the integration.
+### PP-HA-018 — Every HTTP client comes from Home Assistant
+`create_async_httpx_client(hass, ...)`, never one constructed by the integration, and
+always with an explicit timeout. Both places that talk to the portal are covered: the
+coordinator and the config flow's credential check.
 
-It is built with an explicit timeout and is never closed by the integration.
+The coordinator's client lives as long as the entry, so Home Assistant closes it on
+shutdown and the integration does not. The flow's client is wanted for one verification, so
+it passes `auto_cleanup=False` and closes it itself — through `httpx.AsyncClient.aclose`
+rather than the client's own method.
 
-*Why:* three separate traps, all found by running against a real instance rather than by
-any unit test. Creating an `httpx.AsyncClient` loads the CA bundle from disk, which stalls
-the event loop. Home Assistant sets no timeout, leaving httpx's default of five seconds —
-less than a month of quarter-hourly data takes to arrive, so the initial backfill fails and
-the entry never becomes ready. And closing a client Home Assistant created is itself
-flagged as a bug; it closes them on shutdown.
+*Why:* four separate traps, all found by running against a real instance rather than by any
+unit test. Creating an `httpx.AsyncClient` loads the CA bundle from disk, which stalls the
+event loop — the flow did this on every setup and reauthentication until 0.3.4. Home
+Assistant sets no timeout, leaving httpx's default of five seconds — less than a month of
+quarter-hourly data takes to arrive, so the initial backfill fails and the entry never
+becomes ready. Closing a client Home Assistant manages is itself flagged as a bug; it
+closes them on shutdown. And the helper enforces that last point by replacing the returned
+client's bound `aclose` with a stub that only reports the call, even when `auto_cleanup` is
+off and closing it *is* the caller's job — so `client.aclose()` leaves the client open and
+logs the warning it was meant to avoid (homeassistant 2026.2.3, `helpers/httpx_client.py`),
+while the unbound method closes it silently.
 
 ### PP-HA-019 — Diagnostics carry the cost breakdown
 The split between energy and standing charge, the projection, the advances and how much of

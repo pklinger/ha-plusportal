@@ -6,6 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Literal
 
+import httpx
 import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigFlow,
@@ -13,6 +14,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -38,6 +40,7 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL_HOURS,
     MIN_SCAN_INTERVAL_HOURS,
+    PORTAL_TIMEOUT,
 )
 from .tariff import parse_billing_year_start
 
@@ -217,8 +220,18 @@ class PlusPortalConfigFlow(ConfigFlow, domain=DOMAIN):
         An account with none would produce an integration with no entities and
         no explanation, so it is refused here rather than after setup.
         """
+        # Built by Home Assistant so the SSL context comes from its cache
+        # instead of being loaded from disk inside the event loop, which is
+        # reported as a blocking call every time this flow runs.
+        #
+        # Unlike the coordinator's, this client outlives nothing: it is wanted
+        # for one verification, so it opts out of Home Assistant's shutdown
+        # cleanup and is closed below instead.
+        httpx_client = create_async_httpx_client(
+            self.hass, auto_cleanup=False, timeout=PORTAL_TIMEOUT
+        )
         try:
-            async with PlusPortalClient(tenant, username, password) as client:
+            async with PlusPortalClient(tenant, username, password, client=httpx_client) as client:
                 session = await client.login()
                 meter_points = await client.get_meter_points()
         except AuthenticationError:
@@ -228,6 +241,15 @@ class PlusPortalConfigFlow(ConfigFlow, domain=DOMAIN):
         except Exception:
             _LOGGER.exception("Unexpected error while verifying PlusPortal credentials")
             return None, "unknown"
+        finally:
+            # Through the class, not the instance: the helper replaces the
+            # bound `aclose` with a stub that only reports the call, so
+            # `httpx_client.aclose()` would log a warning against this
+            # integration and leave the client open (homeassistant 2026.2.3,
+            # helpers/httpx_client.py). `auto_cleanup=False` makes closing it
+            # ours to do, and the library leaves a client it did not create
+            # alone.
+            await httpx.AsyncClient.aclose(httpx_client)
 
         if not meter_points:
             return None, "no_meters"
