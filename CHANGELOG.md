@@ -9,6 +9,15 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.3.4] - 2026-10-19
+
+### Fixed
+- Setting the integration up, or reauthenticating it, no longer blocks the event loop. The
+  config flow built its own `httpx.AsyncClient` to check the credentials, and creating one
+  loads the CA bundle from disk — which Home Assistant reports as a blocking call from this
+  integration. The flow now borrows a client from Home Assistant, as the coordinator
+  already did, and closes it once the check is done (PP-HA-018).
+
 ## [0.3.3] - 2026-08-13
 
 ### Changed

@@ -7,6 +7,7 @@ package, the same way ``scripts/check_version_bump.py`` is only ever run directl
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
 
@@ -117,6 +118,21 @@ def test_a_patch_bump_does_not_need_a_breaking_subsection(tmp_path: Path) -> Non
     error = _check_in(tmp_path, "0.1.1", changelog)
 
     assert error is None
+
+
+@pytest.fixture(autouse=True)
+def _without_ambient_git_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep git away from whatever repository the caller was pointing at.
+
+    Every git command below is told where to run by ``cwd``, which ``GIT_DIR`` in the
+    environment overrides. Git exports it to its own hooks, and from a worktree it is an
+    absolute path — so running the suite from the pre-push hook made both the throwaway
+    repos and the script under test read the real checkout, and the tags they found were
+    this project's rather than the ones each test had just created.
+    """
+    for name in list(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
 
 
 def _tag(repo: Path, name: str) -> None:
