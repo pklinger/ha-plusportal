@@ -78,12 +78,12 @@ re-published to PyPI.
 
 ## Getting listed in HACS
 
-Users can install straight away by adding the repository as a *custom repository* in HACS —
-no listing required. To appear in the HACS store's own search, the repository has to be in
-the default catalogue: [hacs/default#9925](https://github.com/hacs/default/pull/9925) asks
-for that and is waiting in a queue HACS itself measures in months.
+The repository is in the default catalogue as of
+[hacs/default#9925](https://github.com/hacs/default/pull/9925), so the HACS store's own
+search finds it; adding it as a *custom repository* is only needed on an instance whose copy
+of the catalogue predates the listing.
 
-What that submission needed, all of it already true here: a public repository with a
+What that submission needed, all of it still true here: a public repository with a
 description, topics and issues enabled, at least one release, `hacs.json` with a `name`, a
 manifest carrying `domain`, `documentation`, `issue_tracker`, `codeowners`, `name` and
 `version`, and green `hacs/action` and `hassfest` runs — CI runs both on every push. Two

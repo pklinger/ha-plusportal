@@ -8,7 +8,7 @@
 [![PyPI](https://img.shields.io/pypi/v/pyplusportal?label=pyplusportal)](https://pypi.org/project/pyplusportal/)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.2.0%2B-41BDF5)](https://www.home-assistant.io/)
-[![HACS](https://img.shields.io/badge/HACS-custom%20repository-41BDF5)](#through-hacs)
+[![HACS](https://img.shields.io/badge/HACS-default-41BDF5)](#through-hacs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Built with AI](https://img.shields.io/badge/built%20with-AI%20%2B%20human%20review-8A63D2)](#built-with-ai)
 
@@ -68,24 +68,26 @@ changes.
 
 ### Through HACS
 
-This repository is not in the default HACS catalogue yet, so it has to be added once as a
-custom repository — searching HACS for "plusportal" finds nothing until you do. The badge
-opens it directly in your own instance and offers to add it; the manual route is below it.
+This repository is in the default HACS catalogue, so searching the store finds it — nothing
+has to be added by hand. The badge opens it directly in your own instance; the manual route
+is below it.
 
 [![Open this repository in HACS on your own Home Assistant instance.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pklinger&repository=ha-plusportal&category=integration)
 
-1. **HACS** in the sidebar, then the **⋮** menu at the top right.
-2. **Custom repositories**.
-3. Repository: `https://github.com/pklinger/ha-plusportal`, type **Integration**. **Add**.
-4. **PlusPortal** now appears in the list. Open it and choose **Download**.
-5. Restart Home Assistant.
-6. **Settings → Devices & Services → Add Integration → PlusPortal**, then enter:
+1. **HACS** in the sidebar, then search for **PlusPortal**.
+2. Open the entry and choose **Download**.
+3. Restart Home Assistant.
+4. **Settings → Devices & Services → Add Integration → PlusPortal**, then enter:
 
    | Field | Where to find it |
    |---|---|
    | Tenant number | the six digits at the start of your portal address |
    | Username | your portal login — often the customer number, not an e-mail |
    | Password | your portal password |
+
+> [!NOTE]
+> If the search finds nothing, add the repository as a custom repository instead — **⋮ →
+> Custom repositories**, `https://github.com/pklinger/ha-plusportal`, type **Integration**.
 
 > [!TIP]
 > Home Assistant installs the `pyplusportal` library from PyPI on first setup. If that
