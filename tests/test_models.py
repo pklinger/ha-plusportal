@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 
+from pyplusportal.const import PORTAL_TZ
 from pyplusportal.exceptions import ParseError
 from pyplusportal.models import (
     Channel,
@@ -281,3 +282,75 @@ def test_a_label_without_a_number_is_left_alone():
 
 def test_an_empty_label_falls_back_to_the_number():
     assert _taf("").title == "TAF 7"
+
+
+# ------------------------------------------------- timestamps in both formats
+
+
+def test_an_iso_timestamp_is_read_as_the_instant_it_names():
+    """PP-EXT-018, PP-EXT-010: the portal's new `date` is UTC, not local time."""
+    raw = _point(date="2026-06-30T22:00:00.000+0000", time=1782856800000)
+
+    reading = Reading.from_daily_api(raw, obis="1-0:1.8.0")
+
+    assert reading.start.isoformat() == "2026-07-01T00:00:00+02:00"
+    assert reading.day.isoformat() == "2026-07-01"
+
+
+def test_an_iso_timestamp_and_the_epoch_beside_it_agree():
+    """PP-EXT-018: `date` and `time` name one instant, so either may be read."""
+    iso = _point(date="2026-06-30T22:00:00.000+0000", time=1782856800000)
+    epoch_only = _point(date=None, time=1782856800000)
+
+    assert Reading.from_daily_api(iso, obis="1-0:1.8.0").start == (
+        Reading.from_daily_api(epoch_only, obis="1-0:1.8.0").start
+    )
+
+
+def test_a_point_carrying_only_the_epoch_in_time_is_accepted():
+    """PP-EXT-018: `time` is the fallback when `date` is absent."""
+    raw = _point(time=1782856800000)
+    del raw["date"]
+
+    assert Reading.from_daily_api(raw, obis="1-0:1.8.0").start.isoformat() == (
+        "2026-07-01T00:00:00+02:00"
+    )
+
+
+def test_an_iso_timestamp_without_an_offset_is_rejected():
+    """PP-EXT-018, PP-EXT-010: guessing a zone would shift a whole load profile."""
+    raw = _point(date="2026-06-30T22:00:00.000")
+
+    with pytest.raises(ParseError, match="date"):
+        Reading.from_daily_api(raw, obis="1-0:1.8.0")
+
+
+def test_an_unparseable_timestamp_is_rejected_loudly():
+    """PP-EXT-018, PP-EXT-017."""
+    raw = _point(date="tomorrow lunchtime")
+
+    with pytest.raises(ParseError, match="date"):
+        Reading.from_daily_api(raw, obis="1-0:1.8.0")
+
+
+def test_an_unparseable_date_is_not_papered_over_by_the_epoch_beside_it():
+    """PP-EXT-018: a format nobody anticipated must be heard, not worked around."""
+    raw = _point(date="tomorrow lunchtime", time=1782856800000)
+
+    with pytest.raises(ParseError, match="date"):
+        Reading.from_daily_api(raw, obis="1-0:1.8.0")
+
+
+def test_an_interval_point_with_an_iso_timestamp_still_ends_the_interval():
+    """PP-EXT-018, PP-EXT-004."""
+    raw = {
+        "date": "2026-07-19T22:15:00.000+0000",
+        "time": 1784499300000,
+        "value": Decimal("0.2"),
+        "state": "W",
+    }
+
+    reading = Reading.from_interval_api(raw, obis="1-0:1.8.0", interval=timedelta(minutes=15))
+
+    assert reading.start == datetime(2026, 7, 20, 0, 0, tzinfo=PORTAL_TZ)
+    assert reading.end == datetime(2026, 7, 20, 0, 15, tzinfo=PORTAL_TZ)

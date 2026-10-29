@@ -33,7 +33,7 @@ from .const import (
 )
 from .exceptions import AuthenticationError, ParseError, PortalUnavailableError
 from .json import json_loads
-from .models import Channel, MeterPoint, Overview, Reading, Session
+from .models import Channel, MeterPoint, Overview, Reading, Session, point_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -407,16 +407,17 @@ def _detect_interval(values: list[Any]) -> timedelta:
 
     Electricity in Germany is metered quarter-hourly, but gas and older meters
     use other intervals, so the length is read off the data rather than assumed.
+
+    The timestamps come from :func:`~pyplusportal.models.point_time`, the same
+    source the readings themselves are built from. Reading them any other way
+    lets the two disagree, and a detector that quietly falls back to 15 minutes
+    is right for electricity and wrong for everything else.
     """
-    gaps = sorted(
-        int(later["date"]) - int(earlier["date"])
-        for earlier, later in pairwise(values)
-        if isinstance(earlier.get("date"), int) and isinstance(later.get("date"), int)
-    )
+    gaps = sorted(point_time(later) - point_time(earlier) for earlier, later in pairwise(values))
     if not gaps:
         return DEFAULT_METERING_INTERVAL
-    median_ms = gaps[len(gaps) // 2]
-    return timedelta(milliseconds=median_ms) if median_ms > 0 else DEFAULT_METERING_INTERVAL
+    median = gaps[len(gaps) // 2]
+    return median if median > timedelta() else DEFAULT_METERING_INTERVAL
 
 
 def _interval_readings_from_diagram(raw: Any, channel: Channel) -> list[Reading]:
