@@ -54,3 +54,15 @@ cannot be answered yet.
 `Tariff` raises rather than accepting them.
 
 *Why:* a negative price silently inverts every downstream figure.
+
+### PP-COST-010 — Only energy drawn from the grid is priced, and a listing names its channel
+A projection is computed from the billed channel alone — the same one the integration's
+sensors read. Any listing that can hold more than one channel says which channel each row
+belongs to, and foots them separately.
+
+*Why:* a meter with a photovoltaic system reports feed-in in the same unit, at the same
+resolution and with the same quality flags as consumption. Added together they produce a
+bill roughly twice too high, and a table of interleaved rows that nothing distinguishes —
+both perfectly plausible on sight. The integration already keeps the channels apart
+(PP-HA-026, PP-HA-030); the library's own surfaces have to as well, or the CLI that exists
+to check the integration's numbers disagrees with it.

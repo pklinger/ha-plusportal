@@ -85,6 +85,15 @@
       "expected_settlement_billing_year": {
         "name": "Abrechnungsprognose"
       },
+      "feed_in_last_day": {
+        "name": "Einspeisung letzter Tag"
+      },
+      "feed_in_previous_month": {
+        "name": "Einspeisung Vormonat"
+      },
+      "feed_in_this_month": {
+        "name": "Einspeisung diesen Monat"
+      },
       "last_day": {
         "name": "Verbrauch letzter Tag"
       },

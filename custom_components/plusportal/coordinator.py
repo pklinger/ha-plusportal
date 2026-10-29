@@ -17,10 +17,16 @@ from homeassistant.util import dt as dt_util
 from pyplusportal.client import PlusPortalClient
 from pyplusportal.cost import Projection, Tariff, project_billing_year
 from pyplusportal.exceptions import AuthenticationError, PlusPortalError
-from pyplusportal.models import Channel, MeterPoint, Overview, Reading
+from pyplusportal.models import (
+    Channel,
+    MeterPoint,
+    Overview,
+    Reading,
+    billed_obis,
+    feed_in_obis,
+)
 
 from .const import (
-    BILLED_OBIS,
     CONF_SCAN_INTERVAL_HOURS,
     CONF_TENANT,
     CORRECTION_WINDOW,
@@ -51,24 +57,71 @@ class MeterData:
     """Cost projection, or ``None`` while no tariff is configured."""
 
     @property
+    def billed_obis(self) -> str | None:
+        """OBIS code of the channel every consumption and cost figure is read from.
+
+        An unfamiliar meter falls back to the first channel the portal offered
+        that is not a feed-in register — reporting something is better than
+        reporting nothing, but reporting feed-in as consumption is not.
+        """
+        return billed_obis(self.channel_readings)
+
+    @property
+    def feed_in_obis(self) -> str | None:
+        """OBIS code of the feed-in channel, or ``None`` if the meter has none."""
+        return feed_in_obis(self.channel_readings)
+
+    @property
+    def has_feed_in(self) -> bool:
+        """Whether this metering point reports energy fed back into the grid."""
+        return self.feed_in_obis is not None
+
+    @property
     def readings(self) -> list[Reading]:
         """Readings of the billed channel, which is what the sensors report.
 
         Consumption, data quality and every cost figure describe what was drawn
-        from the grid. An export channel belongs in its own statistic series, not
-        added into these.
+        from the grid. An export channel belongs in its own entities and its own
+        statistic series, not added into these.
         """
-        for obis in BILLED_OBIS:
-            if obis in self.channel_readings:
-                return self.channel_readings[obis]
-        # An unfamiliar meter: fall back to whatever the portal offered first
-        # rather than reporting nothing at all.
-        return next(iter(self.channel_readings.values()), [])
+        obis = self.billed_obis
+        return self.channel_readings.get(obis, []) if obis is not None else []
+
+    @property
+    def feed_in_readings(self) -> list[Reading]:
+        """Readings of the feed-in channel; empty for a meter that has none.
+
+        No fallback to another channel: there is nothing worse to show for
+        feed-in than consumption under a feed-in name.
+        """
+        obis = self.feed_in_obis
+        return self.channel_readings.get(obis, []) if obis is not None else []
+
+    def overview_for(self, obis: str | None) -> Overview | None:
+        """Return the portal's dashboard figures for one OBIS channel."""
+        if obis is None:
+            return None
+        return next((o for o in self.overviews if o.obis == obis), None)
 
     @property
     def overview(self) -> Overview | None:
-        """The first overview channel, which is what the portal's tile shows."""
-        return self.overviews[0] if self.overviews else None
+        """The billed channel's dashboard figures, which the sensors report.
+
+        PP-HA-030: matched by OBIS rather than taken by position. ``getOverview``
+        returns one entry per channel in the portal's own order, so on a meter
+        with feed-in the consumption sensors reported the export figures —
+        silently, because both are plausible numbers of kilowatt hours.
+        """
+        if (found := self.overview_for(self.billed_obis)) is not None:
+            return found
+        # A meter with no readable channel at all — no active tariff use case,
+        # say. Anything but a feed-in register is still better than nothing.
+        return self.overview_for(billed_obis(o.obis for o in self.overviews))
+
+    @property
+    def feed_in_overview(self) -> Overview | None:
+        """The feed-in channel's dashboard figures, or ``None`` without one."""
+        return self.overview_for(self.feed_in_obis)
 
 
 class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
@@ -115,7 +168,7 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             client=self._httpx,
         )
         self._channels: dict[int, list[Channel]] = {}
-        self._backfilled: set[int] = set()
+        self._backfilled: set[tuple[int, str]] = set()
 
     @property
     def tariff(self) -> Tariff | None:
@@ -162,7 +215,7 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             )
             for channel in channels:
                 entry.channel_readings[channel.obis] = await self._client.get_interval_readings(
-                    channel, self._window_start(entry, today), today
+                    channel, self._window_start(entry, channel, today), today
                 )
             if (tariff := self.tariff) is not None:
                 entry.projection = project_billing_year(entry.readings, tariff, today=today)
@@ -171,20 +224,34 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
         await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)
         return data
 
-    def _window_start(self, entry: MeterData, today: date) -> date:
-        """First day to re-read for one metering point.
+    def _window_start(self, entry: MeterData, channel: Channel, today: date) -> date:
+        """First day to re-read for one channel of one metering point.
 
         The first refresh after a restart pulls the whole history so nothing is
         missing from the statistics. Afterwards there is no point re-importing
         years of unchanged data, so only the window in which values can still
         be corrected is re-read.
 
+        PP-HA-032: the history is a property of the channel, not of the meter.
+        Feed-in is usually registered years after the meter was installed, so
+        one window for both either truncates the consumption backfill to the day
+        the photovoltaic system went live, or asks the portal for months it has
+        no feed-in data for on every restart.
+
         Tracked explicitly rather than by inspecting ``self.data``, which is
         only ``None`` before the first refresh as an implementation detail of
         the coordinator base class.
         """
-        earliest = entry.overview.first_value_at.date() if entry.overview else today
-        if entry.meter_point.id not in self._backfilled:
-            self._backfilled.add(entry.meter_point.id)
+        overview = entry.overview_for(channel.obis)
+        if overview is not None:
+            earliest = overview.first_value_at.date()
+        else:
+            # No dashboard tile for this channel: the diagram configuration's
+            # own range is the next best statement of where its data begins.
+            earliest = min(channel.available_from.date(), today)
+
+        key = (entry.meter_point.id, channel.obis)
+        if key not in self._backfilled:
+            self._backfilled.add(key)
             return earliest
         return max(earliest, today - CORRECTION_WINDOW)

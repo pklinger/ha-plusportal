@@ -367,3 +367,34 @@ async def test_a_single_channel_meter_gets_one_series(
     assert [v for _, v in await read_sums(hass, "plusportal:123456_10001_1000_import_energy")] == [
         1.0
     ]
+
+
+async def test_the_feed_in_series_is_named_for_the_dashboards_field(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-025: the Energy dashboard calls the field "Return to grid".
+
+    The source picker lists statistics by name among every entity in the
+    system, so the name has to be the words someone configuring feed-in is
+    already looking for.
+    """
+    config_entry.add_to_hass(hass)
+    start = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    data = {
+        1000: MeterData(
+            meter_point=meter_point,
+            channel_readings={"1-0:2.8.0": quarter_hours(start, 4, kwh="1.00")},
+        )
+    }
+
+    await async_publish_statistics(hass, config_entry, data, None)
+    await flush(hass)
+
+    metadata = await get_instance(hass).async_add_executor_job(
+        partial(get_metadata, hass, statistic_source="plusportal")
+    )
+    names = {meta["statistic_id"]: meta["name"] for _, meta in metadata.values()}
+
+    assert names["plusportal:123456_10001_1000_export_energy"] == (
+        "1ABC0000000000* return to grid"
+    ), names

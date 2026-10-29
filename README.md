@@ -116,7 +116,8 @@ Configure**, and change it there whenever your contract does.
 Per metering point you get consumption for the last day, the current and previous month,
 when the portal last had a value, and what share of the data is final. With a tariff, also
 the accrued energy cost and standing charge, the forecast for the billing year and the
-expected settlement.
+expected settlement. A meter that also feeds into the grid gets the same three energy
+figures for its feed-in; one that does not gets no feed-in entities.
 
 ### The Energy dashboard
 
@@ -127,6 +128,10 @@ state-based sensor would book all of it at the moment of import.
 Under **Settings → Dashboards → Energy → Grid consumption**, pick the statistic named after
 your meter with `plusportal` underneath it (a chart icon, not a lightning bolt). For cost,
 choose *Use an entity with the current price* and select **Energy price**.
+
+Feed-in is a series of its own, named `<meter> return to grid`; add it under **Return to
+grid** in the same dialog. It is never priced at the energy tariff — the portal publishes no
+compensation rate, so attach your own price entity if you want one.
 
 Quarter-hourly readings are aggregated into hourly statistics. Provisional values are left
 out and substitute values are included, which is the rule the supplier bills by, and each

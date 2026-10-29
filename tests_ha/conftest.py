@@ -85,6 +85,40 @@ def channel() -> Channel:
 
 
 @pytest.fixture
+def export_channel() -> Channel:
+    """Return the feed-in channel of a metering point with a photovoltaic system."""
+    return Channel(
+        meter_point_id=1000,
+        taf_number=55789,
+        obis="1-0:2.8.0",
+        label="Stromeinspeisung",
+        unit="kWh",
+        periods=("DAY",),
+        available_from=datetime(2026, 7, 1, tzinfo=PORTAL_TZ),
+        available_to=datetime(2026, 7, 25, tzinfo=PORTAL_TZ),
+    )
+
+
+@pytest.fixture
+def export_overview() -> Overview:
+    """Return the portal's dashboard figures for the feed-in channel.
+
+    Deliberately larger than the consumption ones: a figure that leaks from
+    here into a consumption sensor has to be visible in an assertion.
+    """
+    return Overview(
+        meter_point_id=1000,
+        obis="1-0:2.8.0",
+        label="Stromeinspeisung",
+        unit="kWh",
+        this_month_sum=Decimal("412.5"),
+        prev_month_sum=Decimal("389.25"),
+        first_value_at=datetime(2026, 7, 1, tzinfo=PORTAL_TZ),
+        last_value_at=datetime(2026, 7, 25, 2, 0, tzinfo=PORTAL_TZ),
+    )
+
+
+@pytest.fixture
 def overview() -> Overview:
     """Return the portal's dashboard figures, matching the recorded account."""
     return Overview(
@@ -100,7 +134,11 @@ def overview() -> Overview:
 
 
 def quarter_hours(
-    day: datetime, count: int, kwh: str = "0.01", state: ValueState = ValueState.TRUE_VALUE
+    day: datetime,
+    count: int,
+    kwh: str = "0.01",
+    state: ValueState = ValueState.TRUE_VALUE,
+    obis: str = "1-0:1.8.0",
 ) -> list[Reading]:
     """Build consecutive quarter-hourly readings starting at `day`."""
     return [
@@ -109,7 +147,7 @@ def quarter_hours(
             duration=timedelta(minutes=15),
             value=Decimal(kwh),
             unit="kWh",
-            obis="1-0:1.8.0",
+            obis=obis,
             state=state,
         )
         for index in range(count)

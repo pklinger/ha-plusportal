@@ -11,6 +11,7 @@ rather than silently producing wrong numbers.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -18,6 +19,8 @@ from enum import StrEnum
 from typing import Any, Self
 
 from .const import (
+    BILLED_OBIS,
+    FEED_IN_OBIS,
     PORTAL_TZ,
     SESSION_EXPIRY_MARGIN_SECONDS,
     TAF_PREFERENCE,
@@ -37,7 +40,31 @@ __all__ = [
     "Session",
     "Taf",
     "ValueState",
+    "billed_obis",
+    "feed_in_obis",
 ]
+
+
+def billed_obis(available: Iterable[str]) -> str | None:
+    """Pick the channel an invoice is based on out of what a meter reports.
+
+    A meter with a photovoltaic system reports feed-in in the same unit, at the
+    same resolution and with the same quality flags as consumption, so a caller
+    that simply iterates every channel bills the exported energy too. An
+    unfamiliar OBIS code is still preferred over returning nothing — but never a
+    feed-in register.
+    """
+    codes = list(available)
+    for obis in BILLED_OBIS:
+        if obis in codes:
+            return obis
+    return next((obis for obis in codes if obis not in FEED_IN_OBIS), None)
+
+
+def feed_in_obis(available: Iterable[str]) -> str | None:
+    """Pick the feed-in channel out of what a meter reports, if it has one."""
+    codes = list(available)
+    return next((obis for obis in FEED_IN_OBIS if obis in codes), None)
 
 
 class ValueState(StrEnum):

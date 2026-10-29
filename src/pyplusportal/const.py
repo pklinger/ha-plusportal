@@ -50,4 +50,13 @@ SESSION_EXPIRY_MARGIN_SECONDS: Final = 300
 #: Fallback metering interval when it cannot be inferred from the data.
 DEFAULT_METERING_INTERVAL: Final = timedelta(minutes=15)
 
+#: OBIS codes for energy drawn from the grid, most specific first. These are
+#: the ones an invoice is based on; a feed-in register is not.
+BILLED_OBIS: Final = ("1-0:1.8.0",)
+
+#: OBIS codes for energy fed back into the grid (Netzeinspeisung), most
+#: specific first. Metered the same way and reported in the same units, which
+#: is exactly why it must never be added to what was drawn.
+FEED_IN_OBIS: Final = ("1-0:2.8.0",)
+
 DEFAULT_TIMEOUT: Final = 30.0

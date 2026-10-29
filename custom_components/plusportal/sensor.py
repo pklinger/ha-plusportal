@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -30,6 +30,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from pyplusportal.cost import Tariff
+from pyplusportal.models import Reading
 
 from .const import DOMAIN
 from .coordinator import MeterData, PlusPortalConfigEntry, PlusPortalCoordinator
@@ -39,10 +40,10 @@ _LOGGER = logging.getLogger(__name__)
 CURRENCY_EUR = "EUR"
 
 
-def _last_complete_day(data: MeterData) -> tuple[date, Decimal] | None:
+def _last_complete_day(readings: Iterable[Reading]) -> tuple[date, Decimal] | None:
     """Energy of the most recent day that has billable readings."""
     by_day: dict[date, Decimal] = defaultdict(Decimal)
-    for reading in data.readings:
+    for reading in readings:
         if reading.billable:
             by_day[reading.day] += reading.value
     if not by_day:
@@ -52,13 +53,33 @@ def _last_complete_day(data: MeterData) -> tuple[date, Decimal] | None:
 
 
 def _last_day_value(data: MeterData) -> Decimal | None:
-    result = _last_complete_day(data)
+    result = _last_complete_day(data.readings)
     return None if result is None else result[1]
 
 
 def _last_day_attributes(data: MeterData) -> Mapping[str, Any]:
-    result = _last_complete_day(data)
+    result = _last_complete_day(data.readings)
     return {} if result is None else {"date": result[0].isoformat()}
+
+
+def _feed_in_last_day_value(data: MeterData) -> Decimal | None:
+    result = _last_complete_day(data.feed_in_readings)
+    return None if result is None else result[1]
+
+
+def _feed_in_last_day_attributes(data: MeterData) -> Mapping[str, Any]:
+    result = _last_complete_day(data.feed_in_readings)
+    return {} if result is None else {"date": result[0].isoformat()}
+
+
+def _feed_in_this_month(data: MeterData) -> Decimal | None:
+    overview = data.feed_in_overview
+    return overview.this_month_sum if overview else None
+
+
+def _feed_in_previous_month(data: MeterData) -> Decimal | None:
+    overview = data.feed_in_overview
+    return overview.prev_month_sum if overview else None
 
 
 def _this_month(data: MeterData) -> Decimal | None:
@@ -215,6 +236,41 @@ CONSUMPTION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
     ),
 )
 
+#: PP-HA-031: created only for a metering point that actually feeds in, so a
+#: meter without a feed-in register does not grow three permanently unknown
+#: entities. Energy only — the portal publishes no compensation rate, and
+#: pricing feed-in at the import tariff would be nonsense.
+FEED_IN_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
+    PlusPortalSensorDescription(
+        key="feed_in_last_day",
+        translation_key="feed_in_last_day",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
+        value_fn=_feed_in_last_day_value,
+        attributes_fn=_feed_in_last_day_attributes,
+    ),
+    PlusPortalSensorDescription(
+        key="feed_in_this_month",
+        translation_key="feed_in_this_month",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
+        value_fn=_feed_in_this_month,
+    ),
+    PlusPortalSensorDescription(
+        key="feed_in_previous_month",
+        translation_key="feed_in_previous_month",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=3,
+        value_fn=_feed_in_previous_month,
+    ),
+)
+
 COST_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
     PlusPortalSensorDescription(
         key="energy_price",
@@ -316,9 +372,20 @@ async def async_setup_entry(
     scripts/ha_prune.py.
     """
     coordinator = entry.runtime_data
-    descriptions = CONSUMPTION_SENSORS
-    if coordinator.tariff is not None:
-        descriptions += COST_SENSORS
+
+    def _descriptions(meter_point_id: int) -> tuple[PlusPortalSensorDescription, ...]:
+        """Which sensors one metering point gets.
+
+        Feed-in and cost are both conditional, and for the same reason: an
+        entity that can only ever be unknown is indistinguishable from a broken
+        one (PP-HA-011, PP-HA-031).
+        """
+        descriptions = CONSUMPTION_SENSORS
+        if coordinator.tariff is not None:
+            descriptions += COST_SENSORS
+        if coordinator.data[meter_point_id].has_feed_in:
+            descriptions += FEED_IN_SENSORS
+        return descriptions
 
     known: set[int] = set()
 
@@ -332,7 +399,7 @@ async def async_setup_entry(
         async_add_entities(
             PlusPortalSensor(coordinator, meter_point_id, description)
             for meter_point_id in new_ids
-            for description in descriptions
+            for description in _descriptions(meter_point_id)
         )
 
     _add_new_meters()
