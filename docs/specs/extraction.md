@@ -129,3 +129,30 @@ Missing required fields raise `ParseError` carrying the field name.
 *Why:* the portal returns `null` in places its own schema says it will not. Guessing a
 default would put a wrong number in the Energy dashboard; the field name makes a bug report
 actionable without pasting a response full of account data.
+
+### PP-EXT-018 — A diagram point's timestamp is read in both of the portal's formats
+
+Every point of a `getDiagramResultList` series is timestamped from `date` when that field is
+present, and from `time` otherwise. A numeric value is epoch milliseconds; a string is an
+ISO 8601 timestamp, and one without a UTC offset is rejected rather than guessed at. The
+interval detection reads the same source as the parsing, never a field of its own.
+
+*Why:* the portal moved epoch milliseconds out of `date` into `time` and began sending an
+ISO 8601 string in UTC in `date` instead. Both forms must be carried rather than switched
+between, because a portal change like this arrives one tenant at a time — a client that
+understood only the newer spelling would stop reading every instance not yet updated, and
+the recorded old-format responses this suite reconciles against would stop being
+answerable.
+
+Reading `date` first, even when it is a string that cannot be parsed, is what keeps the next
+such change loud. Quietly accepting `time` whenever `date` looks unfamiliar would turn a
+format change into an invisible one; the two fields agree today, so the fallback would
+appear to work while the real signal — that the portal now says something new — was lost.
+The same reasoning puts the interval detection on one shared timestamp source: it used to
+filter for an integer `date` and fall back to 15 minutes for anything else, which is
+accidentally correct for quarter-hourly electricity and wrong for every other interval, so
+the format change broke parsing noisily while leaving detection silently wrong.
+
+An ISO string without an offset is refused for the reason behind PP-EXT-010: a naive
+datetime would adopt the host's zone, filing a whole load profile one or two hours out with
+nothing to show it had happened.

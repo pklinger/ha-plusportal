@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
 import respx
 
-from pyplusportal.client import PlusPortalClient
+from pyplusportal.client import PlusPortalClient, _detect_interval
 from pyplusportal.const import PORTAL_TZ
 from pyplusportal.models import Channel, Reading, Resolution, ValueState
 
@@ -244,3 +245,55 @@ async def test_an_empty_series_is_not_an_error(respx_mock, client):
         readings = await client.get_interval_readings(CHANNEL, date(2026, 7, 20), date(2026, 7, 20))
 
     assert readings == []
+
+
+# ------------------------------------- interval detection, in either format
+
+
+def iso_points(first_end: datetime, count: int, step: timedelta) -> list[dict[str, Any]]:
+    """Points labelled the way the portal labels them now: an ISO string in UTC."""
+    return [
+        {
+            "date": (first_end + step * i).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000+0000"),
+            "time": int((first_end + step * i).timestamp() * 1000),
+            "value": Decimal("0.2"),
+            "state": "W",
+        }
+        for i in range(count)
+    ]
+
+
+def test_the_interval_is_detected_from_iso_timestamps():
+    """PP-EXT-018, PP-EXT-005: an hourly series must not be read as quarter-hourly."""
+    points = iso_points(datetime(2026, 7, 20, 1, 0, tzinfo=PORTAL_TZ), 6, timedelta(hours=1))
+
+    assert _detect_interval(points) == timedelta(hours=1)
+
+
+def test_the_interval_is_still_detected_from_epoch_timestamps():
+    """PP-EXT-018, PP-EXT-005: the old format keeps working."""
+    first = datetime(2026, 7, 20, 1, 0, tzinfo=PORTAL_TZ)
+    points = [
+        {
+            "date": int((first + timedelta(minutes=30) * i).timestamp() * 1000),
+            "value": Decimal("0.2"),
+            "state": "W",
+        }
+        for i in range(6)
+    ]
+
+    assert _detect_interval(points) == timedelta(minutes=30)
+
+
+def test_detecting_the_interval_reads_the_same_timestamps_the_parser_reads():
+    """PP-EXT-018.
+
+    The regression this guards: the detector filtered on an integer `date` and
+    fell back to 15 minutes for anything else. For electricity that fallback is
+    accidentally right, which is what let the format change go unnoticed.
+    """
+    first_end = datetime(2026, 7, 20, 1, 0, tzinfo=PORTAL_TZ)
+    iso = iso_points(first_end, 6, timedelta(hours=1))
+    epoch = [{**point, "date": point["time"]} for point in iso]
+
+    assert _detect_interval(iso) == _detect_interval(epoch)
