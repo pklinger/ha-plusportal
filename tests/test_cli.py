@@ -12,13 +12,14 @@ import respx
 import pyplusportal.cli as cli_module
 from pyplusportal.cli import main, parse_env_file, redact
 
-from .conftest import json_response
+from .conftest import json_response, load_fixture_text
 
 BASE = "https://123456.plusportal.de"
 LOGIN = f"{BASE}/msw/api/auth"
 SESSION = f"{BASE}/msw/api/public/session"
 USER_ITEMS = f"{BASE}/msw/api/account/getUserItemList"
 OVERVIEW = f"{BASE}/msw/api/edv/getOverview"
+KD_FOR_SESSION = f"{BASE}/msw/api/auth/getKdForSession"
 DIAGRAM_CONFIG = f"{BASE}/msw/api/edv/getDiagramConfigById/TAF/55789/55789"
 DIAGRAM_RESULT = respx.patterns.M(
     url__startswith=f"{BASE}/msw/api/edv/getDiagramResultList/gwa/55789/"
@@ -43,6 +44,8 @@ def portal(session_payload):
     with respx.mock(assert_all_called=False) as mock:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
         mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
         mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
         mock.get(DIAGRAM_CONFIG).mock(return_value=json_response("diagram_config.json"))
@@ -605,3 +608,109 @@ def test_readings_format_option_is_documented(capsys):
 
     assert "--format" in out
     assert "output format" in out
+
+
+# ----------------------------------------------------------------- feed-in
+
+#: A feed-in series the portal would answer with for OBIS 1-0:2.8.0, written
+#: out rather than recorded: 400 kW over a quarter hour is 100 kWh, which no
+#: total that quietly includes it can hide.
+FEED_IN_RESULT = (
+    '[{"currentDiagramType":"power","data":[{"bez":"Stromeinspeisung",'
+    '"obis":"1-0:2.8.0","unit":"kW","values":[{"date":1784498400000,'
+    '"value":400.0,"valueA":400.0,"unitA":"kWh","state":"W"}]}]}]'
+)
+
+
+def _two_channel_config() -> str:
+    """Serve the recorded diagram config twice, once per OBIS channel."""
+    recorded = load_fixture_text("diagram_config.json").strip()
+    one = recorded.removeprefix("[").removesuffix("]").strip()
+    other = one.replace("1-0:1.8.0", "1-0:2.8.0").replace("Stromverbrauch", "Stromeinspeisung")
+    return f"[{one},{other}]"
+
+
+@pytest.fixture
+def feeding_portal(session_payload):
+    """Serve a meter that both draws from and feeds into the grid."""
+    now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+    session_payload["loginValidFrom"] = now_ms
+    session_payload["loginValidTo"] = now_ms + 3_600_000
+
+    def by_obis(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("obis") == "1-0:2.8.0":
+            return httpx.Response(
+                200, text=FEED_IN_RESULT, headers={"content-type": "application/json"}
+            )
+        return json_response("diagram_result_july2026.json")
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post(LOGIN).mock(return_value=httpx.Response(200))
+        mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
+        mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
+        mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
+        mock.get(DIAGRAM_CONFIG).mock(
+            return_value=httpx.Response(
+                200, text=_two_channel_config(), headers={"content-type": "application/json"}
+            )
+        )
+        mock.route(DIAGRAM_RESULT).mock(side_effect=by_obis)
+        yield mock
+
+
+@pytest.fixture
+def portal_routes(session_payload):
+    """Register the single-channel portal's routes on a given respx mock."""
+    now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+    session_payload["loginValidFrom"] = now_ms
+    session_payload["loginValidTo"] = now_ms + 3_600_000
+
+    def register(mock: respx.MockRouter) -> respx.MockRouter:
+        mock.post(LOGIN).mock(return_value=httpx.Response(200))
+        mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
+        mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
+        mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
+        mock.get(DIAGRAM_CONFIG).mock(return_value=json_response("diagram_config.json"))
+        mock.route(DIAGRAM_RESULT).mock(return_value=json_response("diagram_result_july2026.json"))
+        return mock
+
+    return register
+
+
+def test_cost_prices_only_what_was_drawn_from_the_grid(
+    feeding_portal, portal_routes, credentials, tariff_env, capsys
+):
+    """PP-COST-010: feed-in is metered like consumption and must not be billed.
+
+    The feed-in series here is worth 100 kWh. Summed in, it would roughly
+    treble the projection — and still read as a believable bill. Asserted
+    against the single-channel run rather than a hard-coded figure, so the
+    claim is "feed-in changed nothing", which is the whole requirement.
+    """
+    assert main(["cost", "--today", "2026-07-24"]) == 0
+    with_feed_in = capsys.readouterr().out
+    feeding_portal.stop()
+
+    with respx.mock(assert_all_called=False) as only_import:
+        portal_routes(only_import)
+        assert main(["cost", "--today", "2026-07-24"]) == 0
+        import_only = capsys.readouterr().out
+
+    assert with_feed_in == import_only, "the feed-in channel changed the bill"
+
+
+def test_a_readings_table_names_the_channel_of_every_row(feeding_portal, credentials, capsys):
+    """PP-COST-010: interleaved import and export rows are otherwise identical.
+
+    Two channels in one table, both in kWh, both quarter-hourly, both final —
+    and a single footed total that silently adds them together.
+    """
+    assert main(["readings", "--from", "2026-07-01", "--to", "2026-07-24"]) == 0
+
+    out = capsys.readouterr().out
+    assert "1-0:1.8.0" in out and "1-0:2.8.0" in out, "say which channel a row is from"
+    assert out.count("billable total") == 2, "one total per channel, never a shared one"

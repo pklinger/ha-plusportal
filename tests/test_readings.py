@@ -51,6 +51,10 @@ def _authenticated(session_payload):
     with respx.mock:
         respx.post(LOGIN).mock(return_value=httpx.Response(200))
         respx.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        respx.get(f"{BASE}/msw/api/auth/getKdForSession").mock(
+            return_value=httpx.Response(200, json=["2000000001"])
+        )
         yield
 
 

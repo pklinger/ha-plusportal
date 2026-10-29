@@ -31,7 +31,7 @@ from .const import PATH_OVERVIEW, PATH_SESSION, PATH_USER_ITEM_LIST, PORTAL_TZ
 from .cost import Projection, Tariff, billing_year_bounds, project_billing_year
 from .exceptions import AuthenticationError, PlusPortalError, PortalUnavailableError
 from .json import json_dumps
-from .models import MeterPoint, Overview, Reading
+from .models import MeterPoint, Overview, Reading, billed_obis
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -202,16 +202,33 @@ def _fmt(value: Decimal | None) -> str:
 def _render_readings(readings: list[Reading], stream: TextIO) -> None:
     """Show daily values plus the total that would actually be invoiced."""
     rows = [
-        [r.day.isoformat(), f"{r.value:f}", r.unit, r.state.value, "yes" if r.billable else "no"]
+        [
+            r.day.isoformat(),
+            f"{r.value:f}",
+            r.unit,
+            r.obis,
+            r.state.value,
+            "yes" if r.billable else "no",
+        ]
         for r in readings
     ]
-    _print_table(rows, ["date", "value", "unit", "quality", "billable"], stream)
+    _print_table(rows, ["date", "value", "unit", "channel", "quality", "billable"], stream)
 
-    billable = sum((r.value for r in readings if r.billable), Decimal(0))
-    total = sum((r.value for r in readings), Decimal(0))
-    print(f"\n{len(readings)} readings, billable total {billable:f}", file=stream)
-    if billable != total:
-        print(f"(including non-billable values the total would be {total:f})", file=stream)
+    # PP-COST-010: footed per channel. Consumption and feed-in look alike down
+    # to the unit, so a single total under a mixed table is simply wrong.
+    channels = list(dict.fromkeys(r.obis for r in readings))
+    print(file=stream)
+    for obis in channels:
+        of_channel = [r for r in readings if r.obis == obis]
+        billable = sum((r.value for r in of_channel if r.billable), Decimal(0))
+        total = sum((r.value for r in of_channel), Decimal(0))
+        prefix = f"{obis}: " if len(channels) > 1 else ""
+        print(f"{prefix}{len(of_channel)} readings, billable total {billable:f}", file=stream)
+        if billable != total:
+            print(
+                f"{prefix}(including non-billable values the total would be {total:f})",
+                file=stream,
+            )
 
 
 def _readings_as_csv(readings: list[Reading], stream: TextIO) -> None:
@@ -378,7 +395,13 @@ async def _cmd_cost(client: PlusPortalClient, args: argparse.Namespace) -> int:
 
     readings: list[Reading] = []
     for point in await client.get_meter_points():
-        for channel in await client.get_channels(point):
+        # PP-COST-010: the billed channel only. Feed-in is metered exactly like
+        # consumption, so adding it in produces a plausible, far too high bill.
+        channels = await client.get_channels(point)
+        billed = billed_obis(channel.obis for channel in channels)
+        for channel in channels:
+            if channel.obis != billed:
+                continue
             readings.extend(await client.get_interval_readings(channel, start, today))
 
     _render_projection(project_billing_year(readings, tariff, today=today), args.stdout)

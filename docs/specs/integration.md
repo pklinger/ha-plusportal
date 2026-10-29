@@ -179,7 +179,8 @@ consumption and nothing to suggest that cost exists, that it is optional, or tha
 added later — so the absence reads as the integration being incomplete.
 
 ### PP-HA-025 — Statistics are named by what they are, not by their meter
-`<meter> grid consumption` and `<meter> grid cost`, using the Energy dashboard's own term.
+`<meter> grid consumption`, `<meter> grid cost` and `<meter> return to grid`, using the
+Energy dashboard's own terms.
 
 *Why:* the dashboard's source picker lists statistics by name among every entity in the
 system. `<meter> energy` sorts under the meter number, far from anything related, and says
@@ -222,3 +223,43 @@ what is still the same physical meter and account. Without this, the entities bo
 old id keep reading a coordinator key that no longer exists and go unknown permanently — the
 account is still delivering current data, just under an id nothing is listening for. The
 old, now-orphaned entities can be removed with `scripts/ha_prune.py`.
+
+### PP-HA-030 — Every per-meter figure is read from the channel it belongs to
+The consumption sensors, the cost projection and the freshness and quality diagnostics read
+the billed import channel's readings *and* its overview. The feed-in sensors read the export
+channel's. Neither falls back to whichever channel the portal happened to list first.
+
+*Why:* PP-HA-026 already keeps the readings apart, but `getOverview` returns one entry per
+OBIS channel and the order is the portal's. A meter with feed-in therefore made
+`Consumption this month`, `Consumption previous month` and `Last measurement` report the
+export figures — with no indication that they had, because feed-in and consumption are both
+plausible numbers in kWh. The same entry decides how far back the backfill reaches, so the
+wrong one also truncates the import history.
+
+### PP-HA-031 — Feed-in entities exist only for a meter that actually feeds in
+A metering point with no export channel gets no feed-in sensors.
+
+*Why:* the same reasoning as PP-HA-011. Most meters have no feed-in register, and an entity
+that can only ever be unknown is worse than an absent one: it is indistinguishable from a
+broken sensor, and it is offered in every entity picker in the system.
+
+### PP-HA-032 — The backfill window is computed per channel
+From that channel's own `first_value_at`, not from one chosen for the whole meter.
+
+*Why:* feed-in is usually switched on years after the meter was installed, so the two
+channels have different histories. A single window either truncates the import backfill to
+the day the photovoltaic system was registered, or re-requests years of months the portal
+has no export data for on every restart.
+
+### PP-HA-033 — One device per physical meter, however many customer numbers it has
+A metering point reported under several customer numbers becomes one entry, with the
+channels of all of them merged into it. Channel discovery is cached per customer number, not
+per meter.
+
+*Why:* PP-EXT-018 reads every customer number of a login, and the portal reports the same
+metering point id under each — the id identifies the connection, the customer number decides
+which direction is shown. Keyed on the id alone, the last one read wins and the other
+direction disappears; on an account where feed-in sits under its own customer number, that
+is the whole feature. A cache keyed on the meter alone goes wrong the same way, one step
+earlier: the second customer is answered with the first one's channels. Two devices would be
+the opposite error — one meter, one place in the interface.

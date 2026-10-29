@@ -9,6 +9,39 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.4.0] - 2026-10-29
+
+### Added
+- Grid feed-in (Netzeinspeisung). A metering point that has an export register now gets
+  `Feed-in last day`, `Feed-in this month` and `Feed-in previous month`, and its feed-in
+  reaches the Energy dashboard as its own statistic series named `<meter> return to grid` —
+  the dashboard's own term for the field it belongs in. Meters without a feed-in register
+  are unchanged and gain no entities (PP-HA-025, PP-HA-030, PP-HA-031).
+
+### Fixed
+- **Feed-in was invisible to the integration at all.** One portal login can be bound to
+  several customer numbers (GP Nr. Netz), and the session shows one at a time. The same
+  metering point appears under each of them carrying a *different direction* — consumption
+  under one, feed-in under the other — so a client that logs in and reads what it is given
+  sees one direction and nothing that says the other exists. Every customer number is now
+  read in turn, and a login with only one is read exactly as before (PP-EXT-018). The
+  directions are merged into one device per physical meter (PP-HA-033).
+- Consumption figures on a meter with feed-in. `getOverview` returns one entry per OBIS
+  channel in the portal's own order, and the integration took the first one, so
+  `Consumption this month`, `Consumption previous month` and `Last measurement` could
+  report the feed-in channel's values — silently, because feed-in and consumption are both
+  plausible numbers of kilowatt hours. Every figure is now matched to its own channel
+  (PP-HA-030).
+- `pyplusportal cost` priced every channel a meter reports, so on a meter with feed-in it
+  billed the exported energy as well — roughly doubling a bill that still looked believable.
+  It now projects from the billed channel alone, as the integration's sensors do. The
+  readings table names each row's channel and foots the channels separately, which is what
+  made the mixed total visible in the first place (PP-COST-010).
+- The backfill window is computed per channel rather than once per meter. Feed-in is
+  usually registered years after the meter was installed, so a single window either
+  truncated the consumption history to the day the photovoltaic system went live or
+  re-requested months the portal has no feed-in data for on every restart (PP-HA-032).
+
 ## [0.3.4] - 2026-10-19
 
 ### Fixed
