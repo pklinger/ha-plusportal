@@ -19,6 +19,7 @@ LOGIN = f"{BASE}/msw/api/auth"
 SESSION = f"{BASE}/msw/api/public/session"
 USER_ITEMS = f"{BASE}/msw/api/account/getUserItemList"
 OVERVIEW = f"{BASE}/msw/api/edv/getOverview"
+KD_FOR_SESSION = f"{BASE}/msw/api/auth/getKdForSession"
 DIAGRAM_CONFIG = f"{BASE}/msw/api/edv/getDiagramConfigById/TAF/55789/55789"
 DIAGRAM_RESULT = respx.patterns.M(
     url__startswith=f"{BASE}/msw/api/edv/getDiagramResultList/gwa/55789/"
@@ -43,6 +44,8 @@ def portal(session_payload):
     with respx.mock(assert_all_called=False) as mock:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
         mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
         mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
         mock.get(DIAGRAM_CONFIG).mock(return_value=json_response("diagram_config.json"))
@@ -644,6 +647,8 @@ def feeding_portal(session_payload):
     with respx.mock(assert_all_called=False) as mock:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
         mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
         mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
         mock.get(DIAGRAM_CONFIG).mock(
@@ -665,6 +670,8 @@ def portal_routes(session_payload):
     def register(mock: respx.MockRouter) -> respx.MockRouter:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
+        # A login bound to a single customer number: nothing to switch between.
+        mock.get(KD_FOR_SESSION).mock(return_value=httpx.Response(200, json=["2000000001"]))
         mock.get(USER_ITEMS).mock(return_value=json_response("user_item_list.json"))
         mock.get(OVERVIEW).mock(return_value=json_response("overview.json"))
         mock.get(DIAGRAM_CONFIG).mock(return_value=json_response("diagram_config.json"))

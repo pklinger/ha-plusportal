@@ -831,3 +831,57 @@ async def test_a_channel_the_portal_tile_omits_is_backfilled_from_its_config(
 
     assert starts["1-0:1.8.0"] == date(2026, 6, 18), "its own dashboard tile"
     assert starts["1-0:2.8.0"] == date(2026, 7, 1), "its diagram configuration's range"
+
+
+async def test_two_customer_numbers_describe_one_meter(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    meter_point,
+    channel,
+    export_channel,
+    overview,
+    export_overview,
+    session,
+) -> None:
+    """PP-HA-033: the portal shows one direction per customer number.
+
+    Both report the same metering point id, so a coordinator keyed on that id
+    alone keeps whichever came last and the other direction vanishes — along
+    with, on this account, the feed-in the user came for.
+    """
+    from dataclasses import replace
+
+    day = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    drawing = replace(meter_point, customer="2000000001")
+    feeding = replace(meter_point, customer="2000000002")
+    by_customer = {
+        "2000000001": [replace(channel, customer="2000000001")],
+        "2000000002": [replace(export_channel, customer="2000000002")],
+    }
+
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview, export_overview])
+        client.get_meter_points = AsyncMock(return_value=[drawing, feeding])
+        client.get_channels = AsyncMock(side_effect=lambda point: by_customer[point.customer])
+        client.get_interval_readings = AsyncMock(
+            side_effect=lambda ch, start, end: quarter_hours(
+                day, 96, kwh="0.01" if ch.obis == "1-0:1.8.0" else "0.05", obis=ch.obis
+            )
+        )
+        client.aclose = AsyncMock()
+        await setup_entry(hass, config_entry)
+
+    # Both directions' readings, not just both overviews: the portal tile
+    # figures survive a lost channel, the readings do not.
+    assert hass.states.get("sensor.1abc0000000000_last_day").state == "0.96"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_last_day").state == "4.80"
+    assert hass.states.get("sensor.1abc0000000000_this_month").state == "0.757899"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_this_month").state == "412.5"
+
+    registry = er.async_get(hass)
+    devices = {entry.device_id for entry in registry.entities.values()}
+    assert len(devices) == 1, "one physical meter, however many customer numbers it has"

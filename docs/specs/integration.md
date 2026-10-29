@@ -250,3 +250,16 @@ From that channel's own `first_value_at`, not from one chosen for the whole mete
 channels have different histories. A single window either truncates the import backfill to
 the day the photovoltaic system was registered, or re-requests years of months the portal
 has no export data for on every restart.
+
+### PP-HA-033 — One device per physical meter, however many customer numbers it has
+A metering point reported under several customer numbers becomes one entry, with the
+channels of all of them merged into it. Channel discovery is cached per customer number, not
+per meter.
+
+*Why:* PP-EXT-018 reads every customer number of a login, and the portal reports the same
+metering point id under each — the id identifies the connection, the customer number decides
+which direction is shown. Keyed on the id alone, the last one read wins and the other
+direction disappears; on an account where feed-in sits under its own customer number, that
+is the whole feature. A cache keyed on the meter alone goes wrong the same way, one step
+earlier: the second customer is answered with the first one's channels. Two devices would be
+the opposite error — one meter, one place in the interface.

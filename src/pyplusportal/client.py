@@ -22,11 +22,13 @@ from .const import (
     DIAGRAM_KENZ_GROUP,
     DIAGRAM_STATISTIC_TYPE,
     DIAGRAM_SUB_TYPE,
+    PATH_CUSTOMERS,
     PATH_DIAGRAM_CONFIG,
     PATH_DIAGRAM_RESULT,
     PATH_LOGIN,
     PATH_LOGOUT,
     PATH_OVERVIEW,
+    PATH_SELECT_CUSTOMER,
     PATH_SESSION,
     PATH_USER_ITEM_LIST,
     PORTAL_TZ,
@@ -96,6 +98,8 @@ class PlusPortalClient:
         self._password = password
         self._retry_backoff = retry_backoff
         self._session: Session | None = None
+        self._customer: str | None = None
+        self._customers: tuple[str, ...] | None = None
         self._login_lock = asyncio.Lock()
 
         self._owns_client = client is None
@@ -169,14 +173,24 @@ class PlusPortalClient:
                 f"{response.headers.get('content-type', 'unknown')})"
             ) from err
 
-    async def _authenticated_get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        """GET an endpoint that requires a session, logging in when needed."""
+    async def _authenticated_get(
+        self, path: str, params: dict[str, Any] | None = None, *, customer: str | None = None
+    ) -> Any:
+        """GET an endpoint that requires a session, logging in when needed.
+
+        ``customer`` names the customer number the answer should come from.
+        Logging in again puts the session back on the default one, so the
+        selection is made again before the retry — otherwise the retry quietly
+        answers with the other direction of the same meter.
+        """
         await self._ensure_session()
+        await self._select_customer(customer)
 
         response = await self._send("GET", path, params=params)
         if response.status_code in (401, 403):
             _LOGGER.debug("Session rejected on %s, logging in again", path)
             await self._login(force=True)
+            await self._select_customer(customer)
             response = await self._send("GET", path, params=params)
 
         if response.status_code in (401, 403):
@@ -221,6 +235,10 @@ class PlusPortalClient:
                 raise AuthenticationError("this account has no access to energy data in the portal")
 
             self._session = session
+            # A fresh session starts on the login's default customer number,
+            # and the list of them is a property of the session.
+            self._customer = None
+            self._customers = None
             return session
 
     async def _read_session(self) -> Session | None:
@@ -242,6 +260,51 @@ class PlusPortalClient:
         """Ask the portal about the current session without logging in."""
         return await self._read_session()
 
+    # ------------------------------------------------------------ customers
+
+    async def get_customers(self) -> tuple[str, ...]:
+        """List the customer numbers (GP Nr. Netz) this login may be switched to.
+
+        Empty for a portal that does not know the endpoint at all, which is
+        how it stays usable against older instances.
+        """
+        if self._customers is not None:
+            return self._customers
+
+        await self._ensure_session()
+        response = await self._send("GET", PATH_CUSTOMERS)
+        if response.status_code == 404:
+            self._customers = ()
+            return self._customers
+        if response.status_code >= 400:
+            raise PortalUnavailableError(
+                f"GET {PATH_CUSTOMERS} failed with HTTP {response.status_code}"
+            )
+        raw = self._decode(response, path=PATH_CUSTOMERS)
+        self._customers = tuple(str(number) for number in raw or () if number)
+        return self._customers
+
+    async def _contexts(self) -> tuple[str | None, ...]:
+        """Return the customer numbers to read in turn, one at a time.
+
+        A login with nothing to switch between is read as it is, so the
+        ordinary single-customer account costs no extra request.
+        """
+        customers = await self.get_customers()
+        return customers if len(customers) > 1 else (None,)
+
+    async def _select_customer(self, customer: str | None) -> None:
+        """Point the session at one customer number, if it is not there already."""
+        if customer is None or customer == self._customer:
+            return
+
+        response = await self._send("POST", PATH_SELECT_CUSTOMER, json={"custNo": customer})
+        if response.status_code >= 400:
+            raise PortalUnavailableError(
+                f"portal refused to select customer number (HTTP {response.status_code})"
+            )
+        self._customer = customer
+
     async def logout(self) -> None:
         """End the portal session, if there is one."""
         if self._session is None:
@@ -252,6 +315,8 @@ class PlusPortalClient:
             _LOGGER.debug("Logout call failed; dropping the session anyway", exc_info=True)
         finally:
             self._session = None
+            self._customer = None
+            self._customers = None
 
     # ---------------------------------------------------------------- data
 
@@ -264,13 +329,24 @@ class PlusPortalClient:
         return await self._authenticated_get(path, params)
 
     async def get_meter_points(self) -> list[MeterPoint]:
-        """List the metering points assigned to this account."""
-        raw = await self._authenticated_get(PATH_USER_ITEM_LIST, {"page": 0})
-        return MeterPoint.list_from_api(raw)
+        """List the metering points assigned to this account.
+
+        Once per customer number, because the session shows one at a time and
+        each shows a different direction of the same physical meter.
+        """
+        points: list[MeterPoint] = []
+        for customer in await self._contexts():
+            raw = await self._authenticated_get(PATH_USER_ITEM_LIST, {"page": 0}, customer=customer)
+            points.extend(MeterPoint.list_from_api(raw, customer=customer))
+        return points
 
     async def get_overview(self) -> list[Overview]:
         """Fetch the dashboard aggregates for every metering point."""
-        return Overview.list_from_api(await self._authenticated_get(PATH_OVERVIEW))
+        overviews: list[Overview] = []
+        for customer in await self._contexts():
+            raw = await self._authenticated_get(PATH_OVERVIEW, customer=customer)
+            overviews.extend(Overview.list_from_api(raw))
+        return overviews
 
     async def get_channels(self, meter_point: MeterPoint) -> list[Channel]:
         """Discover the OBIS channels of a metering point's primary tariff use case."""
@@ -281,8 +357,17 @@ class PlusPortalClient:
         path = PATH_DIAGRAM_CONFIG.format(
             device_type=DEVICE_TYPE_TAF, device_id=taf.number, group=taf.number
         )
-        raw = await self._authenticated_get(path, {"diagramSubType": meter_point.id, "sublocId": 0})
-        return Channel.list_from_api(raw, meter_point_id=meter_point.id, taf_number=taf.number)
+        raw = await self._authenticated_get(
+            path,
+            {"diagramSubType": meter_point.id, "sublocId": 0},
+            customer=meter_point.customer,
+        )
+        return Channel.list_from_api(
+            raw,
+            meter_point_id=meter_point.id,
+            taf_number=taf.number,
+            customer=meter_point.customer,
+        )
 
     async def get_daily_readings(self, channel: Channel, start: date, end: date) -> list[Reading]:
         """Fetch daily consumption for a channel over an inclusive date range.
@@ -367,6 +452,7 @@ class PlusPortalClient:
                 "doCompare": "false",
                 "useGasDay": "false",
             },
+            customer=channel.customer,
         )
 
 

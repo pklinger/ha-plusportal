@@ -129,3 +129,18 @@ Missing required fields raise `ParseError` carrying the field name.
 *Why:* the portal returns `null` in places its own schema says it will not. Guessing a
 default would put a wrong number in the Energy dashboard; the field name makes a bug report
 actionable without pasting a response full of account data.
+
+### PP-EXT-018 — Every customer number of a login is read, and re-selected after a re-login
+`getKdForSession` lists them; a login with more than one is read once per number, with
+`loginWithKdNr2` selecting each in turn. Logging in again puts the session back on the
+default, so the selection is made again before a retried request. A portal that does not
+know the endpoint, or a login with a single number, is read exactly as before.
+
+*Why:* one portal login can be bound to several customer numbers (GP Nr. Netz), and the
+session shows one at a time. The same metering point id appears under each of them carrying
+a *different direction* — consumption under one, feed-in under the other, each with its own
+tariff use cases. A client that logs in and reads what it is given therefore sees one
+direction and nothing that says the other exists; the feed-in channel is not missing from
+the payload, it is behind a selection nobody made. And because PP-EXT-012 retries a rejected
+request after logging in again, a retry made without re-selecting answers from the default
+customer — the other direction of the same meter, in the same unit, at the same resolution.

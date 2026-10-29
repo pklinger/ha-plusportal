@@ -15,6 +15,10 @@ API_PREFIX: Final = "/msw/api"
 PATH_LOGIN: Final = f"{API_PREFIX}/auth"
 PATH_LOGOUT: Final = f"{API_PREFIX}/auth/logout"
 PATH_SESSION: Final = f"{API_PREFIX}/public/session"
+#: The customer numbers (GP Nr. Netz) this login may be switched between.
+PATH_CUSTOMERS: Final = f"{API_PREFIX}/auth/getKdForSession"
+#: Switches the session to one of them; everything afterwards is theirs.
+PATH_SELECT_CUSTOMER: Final = f"{API_PREFIX}/auth/loginWithKdNr2"
 PATH_USER_ITEM_LIST: Final = f"{API_PREFIX}/account/getUserItemList"
 PATH_OVERVIEW: Final = f"{API_PREFIX}/edv/getOverview"
 PATH_DIAGRAM_CONFIG: Final = (

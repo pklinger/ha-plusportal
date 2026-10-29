@@ -19,6 +19,13 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
   are unchanged and gain no entities (PP-HA-025, PP-HA-030, PP-HA-031).
 
 ### Fixed
+- **Feed-in was invisible to the integration at all.** One portal login can be bound to
+  several customer numbers (GP Nr. Netz), and the session shows one at a time. The same
+  metering point appears under each of them carrying a *different direction* — consumption
+  under one, feed-in under the other — so a client that logs in and reads what it is given
+  sees one direction and nothing that says the other exists. Every customer number is now
+  read in turn, and a login with only one is read exactly as before (PP-EXT-018). The
+  directions are merged into one device per physical meter (PP-HA-033).
 - Consumption figures on a meter with feed-in. `getOverview` returns one entry per OBIS
   channel in the portal's own order, and the integration took the first one, so
   `Consumption this month`, `Consumption previous month` and `Last measurement` could

@@ -273,6 +273,10 @@ class MeterPoint:
     device_type: str
     source_type: str
     tafs: tuple[Taf, ...] = field(default_factory=tuple)
+    customer: str | None = None
+    """Customer number this metering point was read under, if the login has
+    more than one. The same physical meter appears under each of them, showing
+    a different direction, so it decides which channels come back."""
 
     @property
     def active_tafs(self) -> tuple[Taf, ...]:
@@ -296,7 +300,7 @@ class MeterPoint:
         return min(candidates, key=rank)
 
     @classmethod
-    def list_from_api(cls, raw: Any) -> list[Self]:
+    def list_from_api(cls, raw: Any, *, customer: str | None = None) -> list[Self]:
         """Flatten the grouped ``getUserItemList`` response into meter points."""
         points: list[Self] = []
         for group in raw or []:
@@ -310,6 +314,7 @@ class MeterPoint:
                         device_type=device_type,
                         source_type=str(item.get("sourceType") or ""),
                         tafs=tuple(Taf.from_api(taf) for taf in item.get("tafs") or []),
+                        customer=customer,
                     )
                 )
         return points
@@ -373,9 +378,13 @@ class Channel:
     periods: tuple[str, ...]
     available_from: datetime
     available_to: datetime
+    customer: str | None = None
+    """Customer number this channel is visible under; see :class:`MeterPoint`."""
 
     @classmethod
-    def list_from_api(cls, raw: Any, *, meter_point_id: int, taf_number: int) -> list[Self]:
+    def list_from_api(
+        cls, raw: Any, *, meter_point_id: int, taf_number: int, customer: str | None = None
+    ) -> list[Self]:
         """Build channels from ``getDiagramConfigById``.
 
         The portal repeats the same configuration once per configured line, so
@@ -403,6 +412,7 @@ class Channel:
                     periods=periods,
                     available_from=available_from,
                     available_to=available_to,
+                    customer=customer,
                 )
         return list(channels.values())
 

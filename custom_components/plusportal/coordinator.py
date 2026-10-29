@@ -167,7 +167,7 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             # backfill would never finish.
             client=self._httpx,
         )
-        self._channels: dict[int, list[Channel]] = {}
+        self._channels: dict[tuple[str | None, int], list[Channel]] = {}
         self._backfilled: set[tuple[int, str]] = set()
 
     @property
@@ -201,25 +201,38 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
 
         data: dict[int, MeterData] = {}
         for meter_point in await self._client.get_meter_points():
-            channels = self._channels.get(meter_point.id)
+            # PP-HA-033: a login with several customer numbers reports the same
+            # metering point id once per number, each time with a different
+            # direction. One physical meter, so one entry, with the channels of
+            # all of them merged into it.
+            entry = data.get(meter_point.id)
+            if entry is None:
+                entry = MeterData(
+                    meter_point=meter_point,
+                    overviews=[o for o in overviews if o.meter_point_id == meter_point.id],
+                )
+                data[meter_point.id] = entry
+
+            key = (meter_point.customer, meter_point.id)
+            channels = self._channels.get(key)
             if channels is None:
                 # Channel discovery costs a request and never changes between
-                # polls, so it is done once per Home Assistant run.
+                # polls, so it is done once per Home Assistant run. Keyed by
+                # customer number as well: each has its own tariff use cases,
+                # and a cache keyed on the meter alone would answer the second
+                # customer with the first one's channels.
                 channels = await self._client.get_channels(meter_point)
-                self._channels[meter_point.id] = channels
+                self._channels[key] = channels
 
-            entry = MeterData(
-                meter_point=meter_point,
-                channels=channels,
-                overviews=[o for o in overviews if o.meter_point_id == meter_point.id],
-            )
+            entry.channels.extend(channels)
             for channel in channels:
                 entry.channel_readings[channel.obis] = await self._client.get_interval_readings(
                     channel, self._window_start(entry, channel, today), today
                 )
-            if (tariff := self.tariff) is not None:
+
+        if (tariff := self.tariff) is not None:
+            for entry in data.values():
                 entry.projection = project_billing_year(entry.readings, tariff, today=today)
-            data[meter_point.id] = entry
 
         await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)
         return data
