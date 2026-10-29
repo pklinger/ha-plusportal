@@ -315,3 +315,45 @@ def test_month_windows_covers_a_single_day():
     assert _month_windows(date(2026, 7, 5), date(2026, 7, 5)) == [
         (date(2026, 7, 5), date(2026, 7, 5))
     ]
+
+
+# ----------------------------------------- the same month, in the new format
+
+
+@respx.mock(assert_all_called=False)
+async def test_the_new_date_format_yields_exactly_the_old_readings(respx_mock, client):
+    """PP-EXT-018.
+
+    The two fixtures are the same recorded month, differing only in how each
+    point spells its timestamp. Anything but an identical result means the
+    format change moved a number or an hour.
+    """
+    route = respx_mock.route(DIAGRAM_RESULT)
+    collected = []
+    async with client:
+        for name in ("diagram_result_july2026.json", "diagram_result_july2026_iso.json"):
+            route.mock(return_value=json_response(name))
+            collected.append(
+                await client.get_daily_readings(JULY_CHANNEL, date(2026, 7, 1), date(2026, 7, 24))
+            )
+
+    old, new = collected
+    assert len(new) == 24
+    assert new == old
+
+
+@respx.mock(assert_all_called=False)
+async def test_the_new_date_format_still_totals_the_portals_own_month(respx_mock, client):
+    """PP-EXT-018, PP-EXT-009."""
+    respx_mock.route(DIAGRAM_RESULT).mock(
+        return_value=json_response("diagram_result_july2026_iso.json")
+    )
+
+    async with client:
+        readings = await client.get_daily_readings(
+            JULY_CHANNEL, date(2026, 7, 1), date(2026, 7, 24)
+        )
+
+    assert sum(r.value for r in readings) == Decimal("0.757899")
+    assert readings[0].start.isoformat() == "2026-07-01T00:00:00+02:00"
+    assert readings[-1].start.isoformat() == "2026-07-24T00:00:00+02:00"

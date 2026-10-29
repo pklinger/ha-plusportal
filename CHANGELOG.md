@@ -9,6 +9,20 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.3.5] - 2026-10-29
+
+### Fixed
+- Readings parse again after the portal changed how it timestamps a diagram point. It moved
+  the epoch milliseconds out of `date` into a new `time` field and now sends an ISO 8601
+  string in UTC in `date` instead, which made every `getDiagramResultList` response fail
+  with `ParseError: expected an epoch timestamp in milliseconds` — `pyplusportal readings`,
+  `pyplusportal cost` and so every coordinator refresh in Home Assistant. Both spellings are
+  read now, because the change reaches one tenant at a time and a portal still sending the
+  old form has to keep working. The interval detection was reading the timestamp its own
+  way and silently falling back to 15 minutes, which is accidentally right for
+  quarter-hourly electricity and wrong for anything else; it now reads the same source the
+  readings do (PP-EXT-018).
+
 ## [0.3.4] - 2026-10-19
 
 ### Fixed
