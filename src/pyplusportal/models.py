@@ -37,6 +37,7 @@ __all__ = [
     "Session",
     "Taf",
     "ValueState",
+    "point_time",
 ]
 
 
@@ -80,6 +81,47 @@ def _to_datetime(raw: object, *, field_name: str) -> datetime:
     if not isinstance(raw, int | float | Decimal) or isinstance(raw, bool):
         raise ParseError("expected an epoch timestamp in milliseconds", field=field_name)
     return datetime.fromtimestamp(int(raw) / 1000, tz=PORTAL_TZ)
+
+
+def _from_iso(raw: str, *, field_name: str) -> datetime:
+    """Convert an ISO 8601 timestamp into an aware datetime in portal local time.
+
+    The offset the portal sends is honoured rather than assumed: an ISO string
+    without one would be read in the machine's zone, which is exactly the silent
+    shift :data:`PORTAL_TZ` exists to prevent, so it is refused instead.
+    """
+    try:
+        moment = datetime.fromisoformat(raw)
+    except ValueError as err:
+        raise ParseError("expected an ISO 8601 timestamp", field=field_name) from err
+    if moment.tzinfo is None:
+        raise ParseError("ISO 8601 timestamp carries no UTC offset", field=field_name)
+    return moment.astimezone(PORTAL_TZ)
+
+
+def point_time(raw: Any) -> datetime:
+    """Resolve when one diagram point was measured, in portal local time.
+
+    The portal used to put epoch milliseconds in ``date``. It now sends an ISO
+    8601 string in UTC there and the milliseconds alongside in ``time``. Both
+    spellings name the same instant, and both are read, because a change like
+    this reaches one tenant at a time: a client that understood only the newer
+    one would break every portal that has not been updated yet.
+
+    ``date`` decides when it is there, including when it is a string this
+    function cannot parse — falling through to ``time`` would turn the next
+    format change back into the silent one this exists to stop.
+    """
+    if not isinstance(raw, dict):
+        raise ParseError("reading is not an object", field="date")
+    for field_name in ("date", "time"):
+        value = raw.get(field_name)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            return _from_iso(value, field_name=field_name)
+        return _to_datetime(value, field_name=field_name)
+    raise ParseError("reading carries no timestamp", field="date")
 
 
 def _to_decimal(raw: object, *, field_name: str) -> Decimal:
@@ -168,7 +210,7 @@ class Reading:
         start of their day.
         """
         return cls(
-            start=_to_datetime(_require(raw, "date", context="reading"), field_name="date"),
+            start=point_time(raw),
             duration=timedelta(days=1),
             value=_to_decimal(_raw_value(raw), field_name="value"),
             unit=raw.get("unitA") or unit or "",
@@ -186,7 +228,7 @@ class Reading:
         start is shifted back by its length; and the value is average power in
         kW, so it is multiplied by the interval length in hours to give kWh.
         """
-        end = _to_datetime(_require(raw, "date", context="reading"), field_name="date")
+        end = point_time(raw)
         kilowatts = _to_decimal(_raw_value(raw), field_name="value")
         hours = Decimal(interval.total_seconds()) / Decimal(3600)
 
