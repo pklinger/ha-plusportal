@@ -9,7 +9,27 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
-## [0.4.0] - 2026-11-03
+## [0.4.0] - 2026-11-04
+
+### Breaking
+Nothing is removed, and no entity id, statistic id, configuration key or unit changes — the
+Energy dashboard keeps its history and its sources. What changes is what some figures say,
+and only on a meter that feeds into the grid:
+
+- **Consumption figures can change.** They could previously report the feed-in channel,
+  because `getOverview` returns one entry per OBIS channel and the integration took the
+  first. `Consumption this month`, `Consumption previous month` and `Last measurement` now
+  read the billed channel, so on such a meter they will not match what was shown before.
+  The new number is the correct one.
+- **`pyplusportal cost` projects lower.** It priced every channel a meter reports, feed-in
+  included; it now prices the billed channel alone. On a meter with a photovoltaic system
+  the previous figure was roughly double.
+- **The `readings` table gained a `channel` column** and foots each channel separately,
+  which anything parsing that output has to account for. The CSV and JSON formats are
+  unchanged; they already carried `obis`.
+- **The feed-in statistic is displayed as `<meter> return to grid`**, previously
+  `<meter> grid export`. The statistic id is untouched, so history and any dashboard that
+  already uses it are unaffected — only the name in the source picker changes.
 
 ### Added
 - Grid feed-in (Netzeinspeisung). A metering point that has an export register now gets
