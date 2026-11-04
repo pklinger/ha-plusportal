@@ -58,5 +58,11 @@ def diagram_result() -> Any:
 
 
 @pytest.fixture
+def diagram_result_iso() -> Any:
+    """Load the same month as the portal sends it since the `date` format changed."""
+    return load_fixture("diagram_result_july2026_iso.json")
+
+
+@pytest.fixture
 def session_payload() -> Any:
     return load_fixture("session.json")

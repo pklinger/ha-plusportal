@@ -9,7 +9,7 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
-## [0.4.0] - 2026-10-29
+## [0.4.0] - 2026-11-03
 
 ### Added
 - Grid feed-in (Netzeinspeisung). A metering point that has an export register now gets
@@ -24,7 +24,7 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
   metering point appears under each of them carrying a *different direction* — consumption
   under one, feed-in under the other — so a client that logs in and reads what it is given
   sees one direction and nothing that says the other exists. Every customer number is now
-  read in turn, and a login with only one is read exactly as before (PP-EXT-018). The
+  read in turn, and a login with only one is read exactly as before (PP-EXT-019). The
   directions are merged into one device per physical meter (PP-HA-033).
 - Consumption figures on a meter with feed-in. `getOverview` returns one entry per OBIS
   channel in the portal's own order, and the integration took the first one, so
@@ -41,6 +41,20 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
   usually registered years after the meter was installed, so a single window either
   truncated the consumption history to the day the photovoltaic system went live or
   re-requested months the portal has no feed-in data for on every restart (PP-HA-032).
+
+## [0.3.5] - 2026-10-29
+
+### Fixed
+- Readings parse again after the portal changed how it timestamps a diagram point. It moved
+  the epoch milliseconds out of `date` into a new `time` field and now sends an ISO 8601
+  string in UTC in `date` instead, which made every `getDiagramResultList` response fail
+  with `ParseError: expected an epoch timestamp in milliseconds` — `pyplusportal readings`,
+  `pyplusportal cost` and so every coordinator refresh in Home Assistant. Both spellings are
+  read now, because the change reaches one tenant at a time and a portal still sending the
+  old form has to keep working. The interval detection was reading the timestamp its own
+  way and silently falling back to 15 minutes, which is accidentally right for
+  quarter-hourly electricity and wrong for anything else; it now reads the same source the
+  readings do (PP-EXT-018).
 
 ## [0.3.4] - 2026-10-19
 

@@ -354,7 +354,7 @@ def two_customers(session_payload, selected):
 
 
 async def test_every_customer_number_of_a_login_is_read(client, two_customers, selected):
-    """PP-EXT-018: one login, two customer numbers, one direction each.
+    """PP-EXT-019: one login, two customer numbers, one direction each.
 
     The session only ever shows one customer at a time, so a client that logs
     in and reads what it is given sees a single direction — and nothing says
@@ -368,7 +368,7 @@ async def test_every_customer_number_of_a_login_is_read(client, two_customers, s
 
 
 async def test_a_login_with_one_customer_number_is_not_switched(client, session_payload):
-    """PP-EXT-018: the switch is a cost, and most logins have nothing to switch to."""
+    """PP-EXT-019: the switch is a cost, and most logins have nothing to switch to."""
     with respx.mock(assert_all_called=False) as mock:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
@@ -383,7 +383,7 @@ async def test_a_login_with_one_customer_number_is_not_switched(client, session_
 
 
 async def test_a_portal_without_the_customer_endpoint_still_works(client, session_payload):
-    """PP-EXT-018: older portals do not know it, and must not be broken by it."""
+    """PP-EXT-019: older portals do not know it, and must not be broken by it."""
     with respx.mock(assert_all_called=False) as mock:
         mock.post(LOGIN).mock(return_value=httpx.Response(200))
         mock.get(SESSION).mock(return_value=httpx.Response(200, json=session_payload))
@@ -398,7 +398,7 @@ async def test_a_portal_without_the_customer_endpoint_still_works(client, sessio
 
 
 async def test_a_re_login_mid_request_re_selects_the_customer(client, session_payload):
-    """PP-EXT-018: logging in again resets the session to the default customer.
+    """PP-EXT-019: logging in again resets the session to the default customer.
 
     PP-EXT-012 retries a rejected request once after logging in again. Without
     re-selecting, the retry reads the *other* direction of the same meter and
