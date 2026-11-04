@@ -85,6 +85,15 @@
       "expected_settlement_billing_year": {
         "name": "Settlement forecast"
       },
+      "feed_in_last_day": {
+        "name": "Feed-in last day"
+      },
+      "feed_in_previous_month": {
+        "name": "Feed-in previous month"
+      },
+      "feed_in_this_month": {
+        "name": "Feed-in this month"
+      },
       "last_day": {
         "name": "Consumption last day"
       },

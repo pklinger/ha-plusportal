@@ -66,6 +66,14 @@ CHANNEL_SLUGS: dict[str, str] = {
 }
 
 
+#: What a channel is called in the Energy dashboard's source picker, which is
+#: where these statistics have to be found.
+CHANNEL_LABELS: dict[str, str] = {
+    "import": "grid consumption",
+    "export": "return to grid",
+}
+
+
 def channel_slug(obis: str) -> str:
     """Turn an OBIS code into an id fragment the recorder accepts."""
     if (known := CHANNEL_SLUGS.get(obis)) is not None:
@@ -127,8 +135,9 @@ async def async_publish_statistics(
 
             channel = channel_slug(obis)
             # The Energy dashboard's own terms, so a series is findable by what
-            # the user is looking for rather than by meter number.
-            label = "grid consumption" if channel == "import" else f"grid {channel}"
+            # the user is looking for rather than by meter number: its two
+            # electricity fields are "Grid consumption" and "Return to grid".
+            label = CHANNEL_LABELS.get(channel, f"grid {channel}")
 
             await _async_publish_series(
                 hass,

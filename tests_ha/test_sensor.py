@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
@@ -21,7 +21,7 @@ from custom_components.plusportal.const import (
     DOMAIN,
 )
 from pyplusportal.const import PORTAL_TZ
-from pyplusportal.models import ValueState
+from pyplusportal.models import Overview, ValueState
 
 from .conftest import quarter_hours
 
@@ -633,3 +633,255 @@ async def test_cost_sensor_names_stay_short_enough_for_the_device_card(
         # The device name prefixes the friendly name; measure only our part.
         name = state.attributes["friendly_name"].removeprefix("1ABC0000000000* ")
         assert len(name) <= 26, f"{name!r} is {len(name)} characters"
+
+
+# ----------------------------------------------------------------- feed-in
+
+
+@pytest.fixture
+def feeding_portal(meter_point, channel, export_channel, overview, export_overview, session):
+    """Serve one meter that both draws from and feeds into the grid.
+
+    The export channel is listed *first* everywhere the portal could order it,
+    because that is the arrangement under which a consumption sensor silently
+    reported feed-in.
+    """
+    day = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    by_obis = {
+        "1-0:1.8.0": quarter_hours(day, 96, kwh="0.01"),
+        "1-0:2.8.0": quarter_hours(day, 96, kwh="0.05", obis="1-0:2.8.0"),
+    }
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[export_overview, overview])
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+        client.get_channels = AsyncMock(return_value=[export_channel, channel])
+        client.get_interval_readings = AsyncMock(
+            side_effect=lambda ch, start, end: list(by_obis[ch.obis])
+        )
+        client.aclose = AsyncMock()
+        client.factory = factory
+        yield client
+
+
+async def test_consumption_sensors_ignore_the_feed_in_channel(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-030: getOverview lists one entry per channel, in the portal's order.
+
+    With feed-in listed first, every consumption figure was read from the
+    export channel — and 412.5 kWh of feed-in is as plausible a monthly figure
+    as any, so nothing about the display said so.
+    """
+    await setup_entry(hass, config_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_this_month").state == "0.757899"
+    assert hass.states.get("sensor.1abc0000000000_previous_month").state == "0.587"
+    assert hass.states.get("sensor.1abc0000000000_last_day").state == "0.96"
+    assert hass.states.get("sensor.1abc0000000000_last_measurement").state.startswith(
+        "2026-07-24T23:00"
+    ), "the consumption channel's last value, not the feed-in channel's"
+
+
+async def test_feed_in_sensors_report_the_export_channel(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-030: 96 quarter hours of 0.05 kWh fed in is 4.80 kWh.
+
+    Two decimals because the readings are Decimal and keep their scale, which
+    is the point of using Decimal here at all.
+    """
+    await setup_entry(hass, config_entry)
+
+    last_day = hass.states.get("sensor.1abc0000000000_feed_in_last_day")
+    assert last_day is not None
+    assert last_day.state == "4.80"
+    assert last_day.attributes["date"] == "2026-07-20"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_this_month").state == "412.5"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_previous_month").state == "389.25"
+
+
+async def test_feed_in_sensors_are_energy_for_the_dashboard(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-030: feed-in is energy in kWh, like consumption."""
+    await setup_entry(hass, config_entry)
+
+    state = hass.states.get("sensor.1abc0000000000_feed_in_this_month")
+    assert state.attributes["device_class"] == "energy"
+    assert state.attributes["unit_of_measurement"] == "kWh"
+
+
+async def test_a_meter_without_feed_in_gets_no_feed_in_sensors(
+    hass: HomeAssistant, config_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-031: an entity that can only ever be unknown reads as broken."""
+    await setup_entry(hass, config_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_feed_in_last_day") is None
+    assert hass.states.get("sensor.1abc0000000000_feed_in_this_month") is None
+    assert hass.states.get("sensor.1abc0000000000_feed_in_previous_month") is None
+
+
+async def test_each_channel_is_backfilled_from_its_own_first_value(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-032: feed-in starts years after the meter, so one window cannot serve both.
+
+    Consumption has been metered since 18 June, feed-in only since 1 July. A
+    window taken from the feed-in channel truncates the consumption backfill;
+    one taken from consumption asks the portal for weeks it has no feed-in for.
+    """
+    await setup_entry(hass, config_entry)
+
+    starts = {
+        call.args[0].obis: call.args[1]
+        for call in feeding_portal.get_interval_readings.call_args_list
+    }
+    assert starts["1-0:1.8.0"] == date(2026, 6, 18)
+    assert starts["1-0:2.8.0"] == date(2026, 7, 1)
+
+
+async def test_feed_in_sensor_names_stay_short_enough_for_the_device_card(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-020: Home Assistant truncates a long name with an ellipsis."""
+    await setup_entry(hass, config_entry)
+
+    for state in hass.states.async_all("sensor"):
+        if "feed_in" not in state.entity_id:
+            continue
+        name = state.attributes["friendly_name"].removeprefix("1ABC0000000000* ")
+        assert len(name) <= 26, f"{name!r} is {len(name)} characters"
+
+
+def test_an_unfamiliar_meter_never_falls_back_to_its_feed_in_channel(
+    meter_point, overview, export_overview
+) -> None:
+    """PP-HA-030: a code this project does not know is still not feed-in.
+
+    The fallback exists so a meter reporting some unrecognised OBIS code shows
+    consumption rather than nothing. Letting it reach the export register would
+    turn that courtesy into feed-in displayed as consumption.
+    """
+    from custom_components.plusportal.coordinator import MeterData
+
+    day = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    unknown = Overview(
+        meter_point_id=1000,
+        obis="7-20:99.33.0",
+        label="Something else",
+        unit="kWh",
+        this_month_sum=Decimal("5"),
+        prev_month_sum=Decimal("4"),
+        first_value_at=day,
+        last_value_at=day,
+    )
+    data = MeterData(
+        meter_point=meter_point,
+        overviews=[export_overview, unknown],
+        channel_readings={
+            "1-0:2.8.0": quarter_hours(day, 4, kwh="1.00", obis="1-0:2.8.0"),
+            "7-20:99.33.0": quarter_hours(day, 4, kwh="0.25", obis="7-20:99.33.0"),
+        },
+    )
+
+    assert data.billed_obis == "7-20:99.33.0"
+    assert data.overview is unknown
+    assert data.feed_in_obis == "1-0:2.8.0"
+
+
+async def test_a_channel_the_portal_tile_omits_is_backfilled_from_its_config(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    meter_point,
+    channel,
+    export_channel,
+    overview,
+    session,
+) -> None:
+    """PP-HA-032: getOverview lists no tile for the feed-in channel here.
+
+    Falling back to today would import nothing at all for it, and falling back
+    to the consumption channel's start would request months the portal has no
+    feed-in data for. The diagram configuration states where the channel's data
+    begins, so that is what is used.
+    """
+    day = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview])
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+        client.get_channels = AsyncMock(return_value=[channel, export_channel])
+        client.get_interval_readings = AsyncMock(
+            side_effect=lambda ch, start, end: quarter_hours(day, 4, obis=ch.obis)
+        )
+        client.aclose = AsyncMock()
+        await setup_entry(hass, config_entry)
+
+        starts = {
+            call.args[0].obis: call.args[1] for call in client.get_interval_readings.call_args_list
+        }
+
+    assert starts["1-0:1.8.0"] == date(2026, 6, 18), "its own dashboard tile"
+    assert starts["1-0:2.8.0"] == date(2026, 7, 1), "its diagram configuration's range"
+
+
+async def test_two_customer_numbers_describe_one_meter(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    meter_point,
+    channel,
+    export_channel,
+    overview,
+    export_overview,
+    session,
+) -> None:
+    """PP-HA-033: the portal shows one direction per customer number.
+
+    Both report the same metering point id, so a coordinator keyed on that id
+    alone keeps whichever came last and the other direction vanishes — along
+    with, on this account, the feed-in the user came for.
+    """
+    from dataclasses import replace
+
+    day = datetime(2026, 7, 20, tzinfo=PORTAL_TZ)
+    drawing = replace(meter_point, customer="2000000001")
+    feeding = replace(meter_point, customer="2000000002")
+    by_customer = {
+        "2000000001": [replace(channel, customer="2000000001")],
+        "2000000002": [replace(export_channel, customer="2000000002")],
+    }
+
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview, export_overview])
+        client.get_meter_points = AsyncMock(return_value=[drawing, feeding])
+        client.get_channels = AsyncMock(side_effect=lambda point: by_customer[point.customer])
+        client.get_interval_readings = AsyncMock(
+            side_effect=lambda ch, start, end: quarter_hours(
+                day, 96, kwh="0.01" if ch.obis == "1-0:1.8.0" else "0.05", obis=ch.obis
+            )
+        )
+        client.aclose = AsyncMock()
+        await setup_entry(hass, config_entry)
+
+    # Both directions' readings, not just both overviews: the portal tile
+    # figures survive a lost channel, the readings do not.
+    assert hass.states.get("sensor.1abc0000000000_last_day").state == "0.96"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_last_day").state == "4.80"
+    assert hass.states.get("sensor.1abc0000000000_this_month").state == "0.757899"
+    assert hass.states.get("sensor.1abc0000000000_feed_in_this_month").state == "412.5"
+
+    registry = er.async_get(hass)
+    devices = {entry.device_id for entry in registry.entities.values()}
+    assert len(devices) == 1, "one physical meter, however many customer numbers it has"
