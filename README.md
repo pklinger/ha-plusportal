@@ -2,7 +2,8 @@
 
 # ha-plusportal
 
-**Your PlusPortal electricity meter, in Home Assistant — with a cent-accurate bill projection.**
+**Your PlusPortal electricity meter in Home Assistant — what you draw and what you feed in,
+with a cent-accurate bill projection.**
 
 [![CI](https://github.com/pklinger/ha-plusportal/actions/workflows/ci.yml/badge.svg)](https://github.com/pklinger/ha-plusportal/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/pyplusportal?label=pyplusportal)](https://pypi.org/project/pyplusportal/)
@@ -30,8 +31,9 @@
 
 ## What it does
 
-Read your **metered** electricity consumption out of a PlusPortal energy customer portal
-and get it into Home Assistant — including a cent-accurate bill projection.
+Read your **metered** electricity out of a PlusPortal energy customer portal and get it
+into Home Assistant — what you draw from the grid, what you feed back into it, and a
+cent-accurate projection of the bill.
 
 PlusPortal is a white-label customer portal operated by many German utilities, each under
 its own subdomain of the form `https://<tenant>.plusportal.de`. This project uses your own
@@ -39,6 +41,8 @@ account and your own data, through the same API the official web interface uses,
 works for **any** tenant.
 
 - ⚡ **Quarter-hourly meter data** aggregated into Home Assistant long-term statistics
+- ☀️ **Feed-in kept apart** — its own entities and its own statistic series, never added
+  into consumption and never priced at the energy tariff
 - 💶 **Cost, standing charge and settlement forecast** for your billing year
 - 🔁 **Self-correcting** — each refresh re-reads a rolling three-week window
 - 🧾 **Billing-accurate** — provisional readings are excluded, exactly as the supplier bills
@@ -119,6 +123,13 @@ the accrued energy cost and standing charge, the forecast for the billing year a
 expected settlement. A meter that also feeds into the grid gets the same three energy
 figures for its feed-in; one that does not gets no feed-in entities.
 
+> [!NOTE]
+> Some portal logins are bound to more than one customer number (*GP Nr. Netz*), and the
+> portal's own web interface shows one at a time — on such an account the same meter carries
+> consumption under one number and feed-in under the other. The integration reads every
+> number the login has and merges the channels into one device, so both directions appear
+> without switching anything.
+
 ### The Energy dashboard
 
 Consumption is written to long-term statistics rather than exposed as a
@@ -130,8 +141,10 @@ your meter with `plusportal` underneath it (a chart icon, not a lightning bolt).
 choose *Use an entity with the current price* and select **Energy price**.
 
 Feed-in is a series of its own, named `<meter> return to grid`; add it under **Return to
-grid** in the same dialog. It is never priced at the energy tariff — the portal publishes no
-compensation rate, so attach your own price entity if you want one.
+grid** in the same dialog. Leave its compensation empty: the portal publishes no feed-in
+tariff, and pricing exported energy at the rate you pay for imported energy would be
+nonsense. If you know your own rate, enter it there as a static price — Home Assistant then
+calculates the earnings itself, from your figure rather than an invented one.
 
 Quarter-hourly readings are aggregated into hourly statistics. Provisional values are left
 out and substitute values are included, which is the rule the supplier bills by, and each
@@ -151,7 +164,7 @@ uv run pyplusportal meters
 |---|---|
 | `meters` | list metering points and their channels |
 | `overview` | show the portal's dashboard aggregates |
-| `readings` | fetch daily consumption values |
+| `readings` | fetch daily values, one block per OBIS channel |
 | `cost` | project this billing year's cost and settlement |
 | `probe` | record redacted responses as test fixtures |
 
