@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -15,7 +16,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from pyplusportal.client import PlusPortalClient
-from pyplusportal.cost import Projection, Tariff, project_billing_year
+from pyplusportal.cost import Projection, Tariff, billing_year_bounds, project_billing_year
 from pyplusportal.exceptions import AuthenticationError, PlusPortalError
 from pyplusportal.models import (
     Channel,
@@ -50,8 +51,9 @@ class MeterData:
     channels: list[Channel] = field(default_factory=list)
     overviews: list[Overview] = field(default_factory=list)
     channel_readings: dict[str, list[Reading]] = field(default_factory=dict)
-    """Readings per OBIS channel. Kept apart because import and export must
-    never be summed, and only import is billed."""
+    """Readings per OBIS channel, as this refresh fetched them: the whole
+    history on the first one, the correction window afterwards. Kept apart
+    because import and export must never be summed, and only import is billed."""
 
     projection: Projection | None = None
     """Cost projection, or ``None`` while no tariff is configured."""
@@ -83,6 +85,11 @@ class MeterData:
         Consumption, data quality and every cost figure describe what was drawn
         from the grid. An export channel belongs in its own entities and its own
         statistic series, not added into these.
+
+        These are only what the latest refresh fetched, which is three weeks
+        from the second one on. Anything that has to span the billing year is
+        computed by the coordinator from what it keeps (PP-HA-038), not from
+        here.
         """
         obis = self.billed_obis
         return self.channel_readings.get(obis, []) if obis is not None else []
@@ -124,6 +131,12 @@ class MeterData:
         return self.overview_for(self.feed_in_obis)
 
 
+def _within(year: tuple[date, date], readings: Iterable[Reading]) -> dict[datetime, Reading]:
+    """Index the readings that fall inside a billing year by their interval start."""
+    first, last = year
+    return {reading.start: reading for reading in readings if first <= reading.day <= last}
+
+
 class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
     """Fetch consumption for every metering point on the account.
 
@@ -131,6 +144,11 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
     refresh re-reads a rolling window rather than only what is new. Home
     Assistant overwrites statistics that share a start time, which makes the
     repeated import idempotent and lets corrections land.
+
+    The statistics continue a stored sum, so that window is all they need. The
+    cost projection has nothing stored to continue from: it is recomputed from
+    readings on every refresh, so the billing year's readings are kept here and
+    each window is laid over them (PP-HA-038).
     """
 
     config_entry: PlusPortalConfigEntry
@@ -169,6 +187,10 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
         )
         self._channels: dict[tuple[str | None, int], list[Channel]] = {}
         self._backfilled: set[tuple[int, str]] = set()
+        # PP-HA-038: the billed channel's readings of the current billing year,
+        # by interval start, per metering point. After the first refresh only
+        # the correction window is fetched, and a bill is not for three weeks.
+        self._year_to_date: dict[tuple[int, str | None], dict[datetime, Reading]] = {}
 
     @property
     def tariff(self) -> Tariff | None:
@@ -231,8 +253,20 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
                 )
 
         if (tariff := self.tariff) is not None:
+            year = billing_year_bounds(today, tariff)
+            year_to_date: dict[tuple[int, str | None], dict[datetime, Reading]] = {}
             for entry in data.values():
-                entry.projection = project_billing_year(entry.readings, tariff, today=today)
+                billed = (entry.meter_point.id, entry.billed_obis)
+                kept = _within(year, self._year_to_date.get(billed, {}).values())
+                # Laid over what was kept, so a value the portal has corrected
+                # since replaces the one it was first reported with.
+                kept.update(_within(year, entry.readings))
+                year_to_date[billed] = kept
+                entry.projection = project_billing_year(list(kept.values()), tariff, today=today)
+            # Replaced, not updated: a metering point the portal has stopped
+            # reporting has no projection left to feed. PP-HA-029's reassigned
+            # ids would otherwise each strand a billing year here.
+            self._year_to_date = year_to_date
 
         await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)
         return data
