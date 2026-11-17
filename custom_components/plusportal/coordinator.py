@@ -222,6 +222,7 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
         overviews = await self._client.get_overview()
 
         data: dict[int, MeterData] = {}
+        read_in_full: set[tuple[int, str]] = set()
         for meter_point in await self._client.get_meter_points():
             # PP-HA-033: a login with several customer numbers reports the same
             # metering point id once per number, each time with a different
@@ -248,6 +249,8 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
 
             entry.channels.extend(channels)
             for channel in channels:
+                if (backfill := (meter_point.id, channel.obis)) not in self._backfilled:
+                    read_in_full.add(backfill)
                 entry.channel_readings[channel.obis] = await self._client.get_interval_readings(
                     channel, self._window_start(entry, channel, today), today
                 )
@@ -269,15 +272,26 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             self._year_to_date = year_to_date
 
         await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)
+        # PP-HA-039: only now has the history reached the statistics. Any
+        # exception above — this channel's read, another channel's, publishing —
+        # discards everything this refresh read, so marking a channel any
+        # earlier would leave it with three weeks of history until a restart.
+        self._backfilled |= read_in_full
         return data
 
     def _window_start(self, entry: MeterData, channel: Channel, today: date) -> date:
         """First day to re-read for one channel of one metering point.
 
-        The first refresh after a restart pulls the whole history so nothing is
-        missing from the statistics. Afterwards there is no point re-importing
-        years of unchanged data, so only the window in which values can still
-        be corrected is re-read.
+        A channel is read from its first value until a refresh that did so has
+        succeeded, so nothing is missing from the statistics. Afterwards there
+        is no point re-importing years of unchanged data, so only the window in
+        which values can still be corrected is re-read (PP-HA-005).
+
+        PP-HA-039: this only decides; ``_fetch`` records the channel as
+        backfilled once its refresh has published. The full read is the
+        heaviest request the integration makes and the likeliest to time out,
+        and for a metering point id that first appears mid-run (PP-HA-029)
+        there is no fresh coordinator to try again.
 
         PP-HA-032: the history is a property of the channel, not of the meter.
         Feed-in is usually registered years after the meter was installed, so
@@ -297,8 +311,6 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             # own range is the next best statement of where its data begins.
             earliest = min(channel.available_from.date(), today)
 
-        key = (entry.meter_point.id, channel.obis)
-        if key not in self._backfilled:
-            self._backfilled.add(key)
+        if (entry.meter_point.id, channel.obis) not in self._backfilled:
             return earliest
         return max(earliest, today - CORRECTION_WINDOW)

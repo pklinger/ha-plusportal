@@ -26,7 +26,7 @@ Re-importing a changed value for an hour already stored updates it.
 accumulate both.
 
 ### PP-HA-005 — Each refresh re-reads a rolling correction window
-Three weeks back, after a full backfill on the first refresh.
+Three weeks back, once a full backfill of the channel has succeeded (PP-HA-039).
 
 *Why:* it is how corrections are picked up at all. A full re-import every time would be
 wasteful; only new data would miss the corrections.
@@ -285,3 +285,19 @@ use one that answers only for the range requested, as the real client does.
 The two bounds are what keep this a year of quarter hours rather than a leak. PP-HA-029's
 reassigned ids each get a full backfill, so without the second one every reassignment would
 strand its own copy of the billing year until Home Assistant restarts.
+
+### PP-HA-039 — A channel counts as backfilled only once a refresh that read it in full succeeded
+A channel is read from its first value on every refresh until one that did so has published
+its statistics. A failed refresh leaves every channel it was backfilling to be read in full
+again, including those whose own read returned.
+
+*Why:* the full-history read is the heaviest request the integration makes — months of
+quarter-hourly data against the portal timeout — and the likeliest to fail. Marked as
+backfilled before it had succeeded, the channel was read for three weeks only from then on,
+so its statistics held nothing older until Home Assistant restarted — a plausible graph with
+the history missing, and nothing to say so. The billing year PP-HA-038 keeps is seeded by
+that same read, so the cost figures covered the same three weeks. A failed first setup
+rebuilds the coordinator and was never affected; a metering point id that first appears on a
+later refresh (PP-HA-029) is, and the portal hands those out for meters it already reported.
+One channel failing discards what the others read too, because nothing from that refresh is
+published.

@@ -9,6 +9,16 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.4.2] - 2026-11-17
+
+### Fixed
+- A metering point whose first full read fails is read in full again on the next refresh,
+  instead of from three weeks back for as long as Home Assistant keeps running. A channel
+  was counted as backfilled the moment its read was requested, not once it had succeeded,
+  so a timeout on that read — the largest request the integration makes — left its
+  statistics with nothing older than three weeks. Initial setup was never affected; a
+  metering point id the portal reports for the first time on a later poll was (PP-HA-039).
+
 ## [0.4.1] - 2026-11-16
 
 ### Fixed

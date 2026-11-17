@@ -21,6 +21,7 @@ from custom_components.plusportal.const import (
     DOMAIN,
 )
 from pyplusportal.const import PORTAL_TZ
+from pyplusportal.exceptions import PortalUnavailableError
 from pyplusportal.models import Overview, ValueState
 
 from .conftest import quarter_hours
@@ -1062,3 +1063,127 @@ async def test_two_customer_numbers_describe_one_meter(
     registry = er.async_get(hass)
     devices = {entry.device_id for entry in registry.entities.values()}
     assert len(devices) == 1, "one physical meter, however many customer numbers it has"
+
+
+# --------------------------------------------------------------- backfill
+
+ROTATED_ID = 2000
+"""The metering point id the portal reports the same meter under later (PP-HA-029)."""
+
+
+@pytest.fixture
+def rotating_portal(
+    meter_point, channel, export_channel, overview, export_overview, session, freezer
+):
+    """Serve a meter with feed-in whose reads under ``ROTATED_ID`` can be made to fail.
+
+    Time is frozen so the windows have fixed dates: midday UTC on 15 November is
+    the same day in the test harness's Pacific time and in the portal's Berlin,
+    which puts the correction window's start at 25 October. Add an OBIS code to
+    ``client.failing`` and every read of that channel under the new id raises,
+    as the full-history read does when it runs into ``PORTAL_TIMEOUT``.
+    """
+    freezer.move_to("2026-11-15 12:00:00+00:00")
+    day = datetime(2026, 11, 14, tzinfo=PORTAL_TZ)
+    failing: set[str] = set()
+
+    def read(ch, start, end):
+        if ch.meter_point_id == ROTATED_ID and ch.obis in failing:
+            raise PortalUnavailableError("read timed out")
+        return quarter_hours(day, 4, obis=ch.obis)
+
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview, export_overview])
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+        client.get_channels = AsyncMock(return_value=[channel, export_channel])
+        client.get_interval_readings = AsyncMock(side_effect=read)
+        client.aclose = AsyncMock()
+        client.failing = failing
+
+        def rotate() -> None:
+            """Let the portal report the same meter under ``ROTATED_ID`` from now on."""
+            from dataclasses import replace
+
+            client.get_meter_points = AsyncMock(return_value=[replace(meter_point, id=ROTATED_ID)])
+            client.get_channels = AsyncMock(
+                return_value=[
+                    replace(c, meter_point_id=ROTATED_ID) for c in (channel, export_channel)
+                ]
+            )
+            client.get_overview = AsyncMock(
+                return_value=[
+                    replace(o, meter_point_id=ROTATED_ID) for o in (overview, export_overview)
+                ]
+            )
+
+        client.rotate = rotate
+        yield client
+
+
+async def refresh_rotated(hass: HomeAssistant, entry: MockConfigEntry, client) -> dict[str, date]:
+    """Run one refresh; return the first day it asked for, per channel of the new id."""
+    client.get_interval_readings.reset_mock()
+    with patch("custom_components.plusportal.statistics.async_add_external_statistics"):
+        await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    return {
+        call.args[0].obis: call.args[1]
+        for call in client.get_interval_readings.call_args_list
+        if call.args[0].meter_point_id == ROTATED_ID
+    }
+
+
+async def test_a_backfill_that_failed_is_read_in_full_again(
+    hass: HomeAssistant, config_entry: MockConfigEntry, rotating_portal
+) -> None:
+    """PP-HA-039: a channel is backfilled once a refresh that read it in full succeeded.
+
+    The portal reports the meter under a new id mid-run (PP-HA-029), and that
+    id's first read — its whole history, the heaviest request the integration
+    makes — fails. Counted as backfilled anyway, every later refresh read three
+    weeks of it, and the statistics held nothing older until Home Assistant
+    restarted. PP-HA-005: once the full read has succeeded, three weeks it is.
+    """
+    await setup_entry(hass, config_entry)
+    rotating_portal.rotate()
+
+    rotating_portal.failing.update({"1-0:1.8.0", "1-0:2.8.0"})
+    failed = await refresh_rotated(hass, config_entry, rotating_portal)
+    assert not config_entry.runtime_data.last_update_success
+    assert failed == {"1-0:1.8.0": date(2026, 6, 18)}, "the full read was asked for, and raised"
+
+    rotating_portal.failing.clear()
+    retried = await refresh_rotated(hass, config_entry, rotating_portal)
+    assert config_entry.runtime_data.last_update_success
+    assert retried == {"1-0:1.8.0": date(2026, 6, 18), "1-0:2.8.0": date(2026, 7, 1)}
+
+    settled = await refresh_rotated(hass, config_entry, rotating_portal)
+    assert settled == {"1-0:1.8.0": date(2026, 10, 25), "1-0:2.8.0": date(2026, 10, 25)}
+
+
+async def test_a_full_read_counts_only_if_its_whole_refresh_succeeded(
+    hass: HomeAssistant, config_entry: MockConfigEntry, rotating_portal
+) -> None:
+    """PP-HA-039: one channel failing throws away what the others read.
+
+    Consumption is read in full and the feed-in read after it raises. The
+    refresh fails, so nothing it read is published — the consumption history
+    must be asked for again, not taken as delivered because its own read
+    returned.
+    """
+    await setup_entry(hass, config_entry)
+    rotating_portal.rotate()
+
+    rotating_portal.failing.add("1-0:2.8.0")
+    failed = await refresh_rotated(hass, config_entry, rotating_portal)
+    assert not config_entry.runtime_data.last_update_success
+    assert failed == {"1-0:1.8.0": date(2026, 6, 18), "1-0:2.8.0": date(2026, 7, 1)}
+
+    rotating_portal.failing.clear()
+    retried = await refresh_rotated(hass, config_entry, rotating_portal)
+    assert config_entry.runtime_data.last_update_success
+    assert retried == {"1-0:1.8.0": date(2026, 6, 18), "1-0:2.8.0": date(2026, 7, 1)}
