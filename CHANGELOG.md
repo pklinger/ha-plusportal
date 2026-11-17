@@ -11,6 +11,16 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
 ## [0.5.0] - 2026-11-17
 
+The first release since 0.4.0, so it also ships the fixes listed under 0.4.1 and 0.4.2
+below: the cost sensors keep covering the whole billing year after the second poll, and a
+failed first read of a metering point is retried in full.
+
+### Breaking
+Nothing breaks. No entity id, statistic id, configuration key or unit is removed or
+renamed, and an entry without a feed-in price looks exactly as before. The cost figures can
+move once after updating, because of the 0.4.1 fix: they had been showing only the last
+three weeks, and now cover the billing year again.
+
 ### Added
 - A feed-in price (*Einspeisevergütung*, EUR/kWh), optional and independent of the tariff,
   in the setup form and under Configure. A meter that feeds in then gets a
