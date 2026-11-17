@@ -13,10 +13,12 @@ from homeassistant.helpers.httpx_client import (
     create_async_httpx_client,
 )
 
+from custom_components.plusportal.config_flow import _validate_tariff
 from custom_components.plusportal.const import (
     CONF_BASE_PRICE,
     CONF_BILLING_YEAR_START,
     CONF_ENERGY_PRICE,
+    CONF_FEED_IN_PRICE,
     CONF_MONTHLY_ADVANCE,
     CONF_TENANT,
     DOMAIN,
@@ -368,3 +370,48 @@ async def test_the_first_step_says_that_prices_are_optional_and_can_wait(
 
     description = result["description_placeholders"] or {}
     assert description.get("tariff_hint"), "the first step must mention the tariff"
+
+
+# ------------------------------------------------------------ feed-in price
+
+
+async def test_the_feed_in_price_can_be_set_without_a_tariff(
+    hass: HomeAssistant, config_entry
+) -> None:
+    """PP-HA-034: someone may know what they are paid without wanting cost figures."""
+    config_entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FEED_IN_PRICE: 0.0811}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert config_entry.options[CONF_FEED_IN_PRICE] == 0.0811
+    assert CONF_ENERGY_PRICE not in config_entry.options
+
+
+async def test_setup_offers_the_feed_in_price_too(hass: HomeAssistant, client_ok) -> None:
+    """PP-HA-034: the same form at setup as under Configure (PP-HA-023)."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_FEED_IN_PRICE: 0.0811}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"][CONF_FEED_IN_PRICE] == 0.0811
+
+
+def test_a_negative_feed_in_price_is_rejected() -> None:
+    """PP-HA-034: being charged for feeding in is not a price anyone means.
+
+    The form's own selector already refuses it; this is for whatever reaches
+    the validation without passing through the form.
+    """
+    with pytest.raises(ValueError, match=CONF_FEED_IN_PRICE):
+        _validate_tariff({CONF_FEED_IN_PRICE: -0.01})

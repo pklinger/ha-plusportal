@@ -115,13 +115,17 @@ Configure**, and change it there whenever your contract does.
 | Standing charge (EUR/year) | apportioned across the billing year |
 | Monthly advance payment (EUR) | needed for the settlement forecast |
 | Billing year starts (MM-DD) | defaults to 01-01 |
+| Feed-in price (EUR/kWh) | what you are paid for feed-in; independent of the tariff |
 | Update interval (hours) | defaults to 6; the portal publishes once a day |
 
 Per metering point you get consumption for the last day, the current and previous month,
 when the portal last had a value, and what share of the data is final. With a tariff, also
 the accrued energy cost and standing charge, the forecast for the billing year and the
 expected settlement. A meter that also feeds into the grid gets the same three energy
-figures for its feed-in; one that does not gets no feed-in entities.
+figures for its feed-in; one that does not gets no feed-in entities. With a feed-in price,
+such a meter also shows the price and what the last day, the current and the previous month
+earned. That money is never offset against the cost figures: compensation usually comes from
+the grid operator, separately from the bill the forecast and settlement describe.
 
 > [!NOTE]
 > Some portal logins are bound to more than one customer number (*GP Nr. Netz*), and the
@@ -138,13 +142,17 @@ state-based sensor would book all of it at the moment of import.
 
 Under **Settings → Dashboards → Energy → Grid consumption**, pick the statistic named after
 your meter with `plusportal` underneath it (a chart icon, not a lightning bolt). For cost,
-choose *Use an entity with the current price* and select **Energy price**.
+choose the option that takes a statistic tracking the total cost, and select
+`<meter> grid cost`. It exists once an energy price is set.
 
 Feed-in is a series of its own, named `<meter> return to grid`; add it under **Return to
-grid** in the same dialog. Leave its compensation empty: the portal publishes no feed-in
-tariff, and pricing exported energy at the rate you pay for imported energy would be
-nonsense. If you know your own rate, enter it there as a static price — Home Assistant then
-calculates the earnings itself, from your figure rather than an invented one.
+grid** in the same dialog. For its compensation, choose the option that takes a statistic
+tracking the total compensation, and select `<meter> feed-in compensation`. It exists once a
+feed-in price is set; the portal publishes no feed-in tariff of its own.
+
+The price options, a static price or an entity with the current price, do not work here.
+Home Assistant computes money from a price only for a source that is itself an entity, and
+these are external statistics, so it would show no cost and no compensation at all.
 
 Quarter-hourly readings are aggregated into hourly statistics. Provisional values are left
 out and substitute values are included, which is the rule the supplier bills by, and each

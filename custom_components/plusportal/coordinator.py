@@ -6,6 +6,7 @@ import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -36,7 +37,7 @@ from .const import (
     PORTAL_TIMEOUT,
 )
 from .statistics import async_publish_statistics
-from .tariff import tariff_from_options
+from .tariff import feed_in_price_from_options, tariff_from_options
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -197,6 +198,15 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
         """The configured tariff, or ``None`` while no prices are set."""
         return tariff_from_options(self.config_entry.options)
 
+    @property
+    def feed_in_price(self) -> Decimal | None:
+        """What is paid per kWh fed in, in EUR, or ``None`` while it is not set.
+
+        PP-HA-034: deliberately not part of ``tariff``. It is valid without an
+        energy price, and nothing derived from the tariff may ever see it.
+        """
+        return feed_in_price_from_options(self.config_entry.options)
+
     async def async_shutdown_client(self) -> None:
         """Release anything the client owns when the entry is unloaded.
 
@@ -271,7 +281,9 @@ class PlusPortalCoordinator(DataUpdateCoordinator[dict[int, MeterData]]):
             # ids would otherwise each strand a billing year here.
             self._year_to_date = year_to_date
 
-        await async_publish_statistics(self.hass, self.config_entry, data, self.tariff)
+        await async_publish_statistics(
+            self.hass, self.config_entry, data, self.tariff, self.feed_in_price
+        )
         # PP-HA-039: only now has the history reached the statistics. Any
         # exception above — this channel's read, another channel's, publishing —
         # discards everything this refresh read, so marking a channel any

@@ -34,6 +34,8 @@ from .conftest import quarter_hours
 
 ENERGY_ID = "plusportal:123456_10001_1000_import_energy"
 COST_ID = "plusportal:123456_10001_1000_import_cost"
+COMPENSATION_ID = "plusportal:123456_10001_1000_export_compensation"
+FEED_IN_PRICE = Decimal("0.0811")
 
 
 async def flush(hass: HomeAssistant) -> None:
@@ -398,3 +400,114 @@ async def test_the_feed_in_series_is_named_for_the_dashboards_field(
     assert names["plusportal:123456_10001_1000_export_energy"] == (
         "1ABC0000000000* return to grid"
     ), names
+
+
+# ------------------------------------------------- feed-in compensation
+
+
+def fed_in(count: int, state: ValueState = ValueState.TRUE_VALUE) -> list[Reading]:
+    """Build quarter hours of 1 kWh each on the feed-in channel."""
+    return quarter_hours(
+        datetime(2026, 7, 20, tzinfo=PORTAL_TZ), count, kwh="1.00", state=state, obis="1-0:2.8.0"
+    )
+
+
+def feeding_meter_data(meter_point, exported: list[Reading]) -> dict[int, MeterData]:
+    return {1000: MeterData(meter_point=meter_point, channel_readings={"1-0:2.8.0": exported})}
+
+
+async def test_no_compensation_statistics_without_a_feed_in_price(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-035: unpriced feed-in is energy and nothing else."""
+    config_entry.add_to_hass(hass)
+
+    await async_publish_statistics(
+        hass, config_entry, feeding_meter_data(meter_point, fed_in(4)), None
+    )
+
+    assert await read_sums(hass, COMPENSATION_ID) == []
+
+
+async def test_compensation_statistics_pay_each_hour_fed_in(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-035: 4 kWh at 8.11 ct is 0.3244 EUR, and the second hour adds to it."""
+    config_entry.add_to_hass(hass)
+
+    await async_publish_statistics(
+        hass, config_entry, feeding_meter_data(meter_point, fed_in(8)), None, FEED_IN_PRICE
+    )
+
+    sums = await read_sums(hass, COMPENSATION_ID)
+    assert [round(value, 4) for _, value in sums] == [0.3244, 0.6488]
+
+
+async def test_each_direction_is_priced_at_its_own_rate_only(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-037: what was drawn is billed, what was fed in is paid, never crosswise.
+
+    1 kWh drawn at 34.5 ct and 4 kWh fed in at 8.11 ct. Applying either rate to
+    the other direction gives 1.38 EUR of cost or 0.0811 EUR of compensation —
+    both believable, and both wrong.
+    """
+    config_entry.add_to_hass(hass)
+    data = {
+        1000: MeterData(
+            meter_point=meter_point,
+            channel_readings={
+                "1-0:1.8.0": quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 4, kwh="0.25"),
+                "1-0:2.8.0": fed_in(4),
+            },
+        )
+    }
+    tariff = Tariff(energy_price_ct_per_kwh=Decimal("34.5"), base_price_eur_per_year=Decimal("120"))
+
+    await async_publish_statistics(hass, config_entry, data, tariff, FEED_IN_PRICE)
+
+    assert [round(v, 4) for _, v in await read_sums(hass, COST_ID)] == [0.345]
+    assert [round(v, 4) for _, v in await read_sums(hass, COMPENSATION_ID)] == [0.3244]
+    assert await read_sums(hass, "plusportal:123456_10001_1000_import_compensation") == []
+    assert await read_sums(hass, "plusportal:123456_10001_1000_export_cost") == []
+
+
+async def test_provisional_feed_in_is_not_compensated(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-035: a provisional hour would be paid for and then corrected."""
+    config_entry.add_to_hass(hass)
+    exported = fed_in(4) + quarter_hours(
+        datetime(2026, 7, 20, 1, tzinfo=PORTAL_TZ),
+        4,
+        kwh="9",
+        state=ValueState.PRELIMINARY,
+        obis="1-0:2.8.0",
+    )
+
+    await async_publish_statistics(
+        hass, config_entry, feeding_meter_data(meter_point, exported), None, FEED_IN_PRICE
+    )
+
+    sums = await read_sums(hass, COMPENSATION_ID)
+    assert [round(value, 4) for _, value in sums] == [0.3244], "the provisional hour has no row"
+
+
+async def test_the_compensation_series_is_named_and_in_euro(
+    recorder_mock: Recorder, hass: HomeAssistant, config_entry: MockConfigEntry, meter_point
+) -> None:
+    """PP-HA-025: found by name in the dashboard's picker, and money by unit."""
+    config_entry.add_to_hass(hass)
+
+    await async_publish_statistics(
+        hass, config_entry, feeding_meter_data(meter_point, fed_in(4)), None, FEED_IN_PRICE
+    )
+    await flush(hass)
+
+    metadata = await get_instance(hass).async_add_executor_job(
+        partial(get_metadata, hass, statistic_source="plusportal")
+    )
+    found = {meta["statistic_id"]: meta for _, meta in metadata.values()}
+
+    assert found[COMPENSATION_ID]["name"] == "1ABC0000000000* feed-in compensation", found
+    assert found[COMPENSATION_ID]["unit_of_measurement"] == "EUR"

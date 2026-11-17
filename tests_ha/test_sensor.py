@@ -17,10 +17,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.plusportal.const import (
     CONF_BASE_PRICE,
     CONF_ENERGY_PRICE,
+    CONF_FEED_IN_PRICE,
     CONF_MONTHLY_ADVANCE,
     DOMAIN,
 )
 from pyplusportal.const import PORTAL_TZ
+from pyplusportal.cost import Tariff, project_billing_year
 from pyplusportal.exceptions import PortalUnavailableError
 from pyplusportal.models import Overview, ValueState
 
@@ -1187,3 +1189,187 @@ async def test_a_full_read_counts_only_if_its_whole_refresh_succeeded(
     retried = await refresh_rotated(hass, config_entry, rotating_portal)
     assert config_entry.runtime_data.last_update_success
     assert retried == {"1-0:1.8.0": date(2026, 6, 18), "1-0:2.8.0": date(2026, 7, 1)}
+
+
+# ---------------------------------------------------- feed-in compensation
+
+
+@pytest.fixture
+def feed_in_entry() -> MockConfigEntry:
+    """PP-HA-034: paid 8.11 ct per kWh fed in, with no supply tariff at all."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456-10001",
+        data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
+        options={CONF_FEED_IN_PRICE: 0.0811},
+    )
+
+
+async def test_the_configured_feed_in_price_reaches_the_statistics(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-035: the series is priced with what was entered, as a Decimal."""
+    feed_in_entry.add_to_hass(hass)
+    with patch(
+        "custom_components.plusportal.coordinator.async_publish_statistics", AsyncMock()
+    ) as publish:
+        await hass.config_entries.async_setup(feed_in_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert publish.await_args.args[4:] == (Decimal("0.0811"),)
+
+
+COMPENSATION_SENSORS = (
+    "sensor.1abc0000000000_feed_in_price",
+    "sensor.1abc0000000000_feed_in_compensation_last_day",
+    "sensor.1abc0000000000_feed_in_compensation_this_month",
+    "sensor.1abc0000000000_feed_in_compensation_previous_month",
+)
+
+
+async def test_the_feed_in_price_is_exposed_as_an_entity(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-036: the rate every amount beside it was multiplied by."""
+    await setup_entry(hass, feed_in_entry)
+
+    state = hass.states.get("sensor.1abc0000000000_feed_in_price")
+    assert state is not None
+    assert state.state == "0.0811"
+    assert state.attributes["unit_of_measurement"] == "EUR/kWh"
+
+
+async def test_compensation_is_the_energy_neighbour_times_the_price(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-036: 4.80 kWh, 412.5 kWh and 389.25 kWh at 8.11 ct.
+
+    That is 0.38928, 33.45375 and 31.568175 EUR, each rounded half-up at the
+    cent — the same three figures the feed-in sensors show, times the price.
+    """
+    await setup_entry(hass, feed_in_entry)
+
+    last_day = hass.states.get("sensor.1abc0000000000_feed_in_compensation_last_day")
+    assert last_day is not None
+    assert last_day.state == "0.39"
+    assert last_day.attributes["date"] == "2026-07-20"
+    assert hass.states.get(COMPENSATION_SENSORS[2]).state == "33.45"
+    assert hass.states.get(COMPENSATION_SENSORS[3]).state == "31.57"
+
+
+async def test_compensation_sensors_are_money(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-036: euro, so nothing downstream mistakes it for energy."""
+    await setup_entry(hass, feed_in_entry)
+
+    for entity_id in COMPENSATION_SENSORS[1:]:
+        state = hass.states.get(entity_id)
+        assert state is not None, entity_id
+        assert state.attributes["device_class"] == "monetary"
+        assert state.attributes["unit_of_measurement"] == "EUR"
+
+
+async def test_no_compensation_sensors_without_a_feed_in_price(
+    hass: HomeAssistant, config_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-036: unpriced feed-in has energy figures and nothing in euro."""
+    await setup_entry(hass, config_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_feed_in_this_month") is not None
+    for entity_id in COMPENSATION_SENSORS:
+        assert hass.states.get(entity_id) is None, entity_id
+
+
+async def test_no_compensation_sensors_for_a_meter_that_does_not_feed_in(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, portal
+) -> None:
+    """PP-HA-036: a price alone creates nothing; there is no feed-in to pay for."""
+    await setup_entry(hass, feed_in_entry)
+
+    assert hass.states.get("sensor.1abc0000000000_this_month") is not None
+    for entity_id in COMPENSATION_SENSORS:
+        assert hass.states.get(entity_id) is None, entity_id
+
+
+async def test_a_feed_in_price_of_zero_still_reports(hass: HomeAssistant, feeding_portal) -> None:
+    """PP-HA-034: zero was entered, so the answer is 0.00 and not unknown."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456-10001",
+        data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
+        options={CONF_FEED_IN_PRICE: 0},
+    )
+    await setup_entry(hass, entry)
+
+    assert hass.states.get(COMPENSATION_SENSORS[2]).state == "0.00"
+
+
+async def test_month_compensation_is_unknown_without_a_month_sum(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal, overview
+) -> None:
+    """PP-HA-036: the portal's tile can omit a channel that still has readings.
+
+    The readings give a last day; nothing gives a month. 0.00 EUR there would
+    be a claim that nothing was fed in (PP-HA-008).
+    """
+    feeding_portal.get_overview = AsyncMock(return_value=[overview])
+    await setup_entry(hass, feed_in_entry)
+
+    assert hass.states.get(COMPENSATION_SENSORS[1]).state == "0.39"
+    assert hass.states.get(COMPENSATION_SENSORS[2]).state == STATE_UNKNOWN
+    assert hass.states.get(COMPENSATION_SENSORS[3]).state == STATE_UNKNOWN
+
+
+async def test_a_feed_in_price_leaves_every_cost_figure_alone(
+    hass: HomeAssistant, feeding_portal, freezer
+) -> None:
+    """PP-HA-037: the supplier's bill does not know what the grid operator pays.
+
+    Priced from the 0.96 kWh drawn and nothing else — not the 4.80 kWh fed in,
+    and not reduced by what those earn.
+    """
+    freezer.move_to(datetime(2026, 7, 26, 12, tzinfo=PORTAL_TZ))
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="123456-10001",
+        data={"tenant": "123456", "username": "1000000000", "password": "s3cret"},
+        options={
+            CONF_ENERGY_PRICE: 0.35,
+            CONF_BASE_PRICE: 12.0,
+            CONF_MONTHLY_ADVANCE: 80.0,
+            CONF_FEED_IN_PRICE: 0.0811,
+        },
+    )
+    await setup_entry(hass, entry)
+
+    drawn = quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 96, kwh="0.01")
+    tariff = Tariff(
+        energy_price_ct_per_kwh=Decimal("35"),
+        base_price_eur_per_year=Decimal("12"),
+        monthly_advance_eur=Decimal("80"),
+    )
+    expected = project_billing_year(drawn, tariff, today=date(2026, 7, 26))
+
+    def amount(key: str) -> Decimal:
+        return Decimal(hass.states.get(f"sensor.1abc0000000000_{key}").state)
+
+    assert expected.observed.energy_eur == Decimal("0.34"), "0.96 kWh at 35 ct"
+    assert amount("energy_cost_to_date") == expected.observed.energy_eur
+    assert amount("cost_to_date") == expected.observed.total_eur
+    assert amount("projected_cost_billing_year") == expected.projected_eur
+    assert amount("expected_settlement_billing_year") == expected.settlement_eur
+
+
+async def test_compensation_sensor_names_stay_short_enough_for_the_device_card(
+    hass: HomeAssistant, feed_in_entry: MockConfigEntry, feeding_portal
+) -> None:
+    """PP-HA-020: Home Assistant truncates a long name with an ellipsis."""
+    await setup_entry(hass, feed_in_entry)
+
+    names = [
+        hass.states.get(entity_id).attributes["friendly_name"].removeprefix("1ABC0000000000* ")
+        for entity_id in COMPENSATION_SENSORS
+    ]
+    for name in names:
+        assert len(name) <= 26, f"{name!r} is {len(name)} characters"

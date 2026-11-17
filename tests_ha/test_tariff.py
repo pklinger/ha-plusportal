@@ -15,9 +15,14 @@ from custom_components.plusportal.const import (
     CONF_BASE_PRICE,
     CONF_BILLING_YEAR_START,
     CONF_ENERGY_PRICE,
+    CONF_FEED_IN_PRICE,
     CONF_MONTHLY_ADVANCE,
 )
-from custom_components.plusportal.tariff import parse_billing_year_start, tariff_from_options
+from custom_components.plusportal.tariff import (
+    feed_in_price_from_options,
+    parse_billing_year_start,
+    tariff_from_options,
+)
 
 
 @pytest.mark.parametrize(
@@ -101,3 +106,40 @@ def test_the_energy_price_is_entered_in_euro_per_kwh() -> None:
 
     assert tariff is not None
     assert tariff.energy_price_eur_per_kwh == Decimal("0.35")
+
+
+# ------------------------------------------------------------ feed-in price
+
+
+def test_no_feed_in_price_means_no_compensation() -> None:
+    """PP-HA-034: an unset price, not a price of zero."""
+    assert feed_in_price_from_options({}) is None
+    assert feed_in_price_from_options({CONF_ENERGY_PRICE: 0.345}) is None
+
+
+def test_the_feed_in_price_does_not_need_an_energy_price() -> None:
+    """PP-HA-034: a different contract with a different party.
+
+    The form hands over a float. Converted through its text it stays 0.0811;
+    converted directly it becomes 0.08110000000000000264…, and every amount
+    derived from it carries that tail.
+    """
+    options = {CONF_FEED_IN_PRICE: 0.0811}
+
+    assert feed_in_price_from_options(options) == Decimal("0.0811")
+    assert tariff_from_options(options) is None, "no energy price, so still no tariff"
+
+
+def test_a_feed_in_price_of_zero_is_a_price() -> None:
+    """PP-HA-034: zero was entered; empty was not."""
+    assert feed_in_price_from_options({CONF_FEED_IN_PRICE: 0}) == Decimal(0)
+
+
+@pytest.mark.parametrize("value", ["not a number", "", -0.01, "nan", "inf", [0.08]])
+def test_an_unusable_feed_in_price_yields_none_rather_than_raising(value: object) -> None:
+    """PP-HA-034: a hand-edited `.storage` must not keep the entry from loading.
+
+    "inf" and "nan" parse as Decimal without complaint. Priced with either,
+    every statistic row would be infinite or not a number.
+    """
+    assert feed_in_price_from_options({CONF_FEED_IN_PRICE: value}) is None

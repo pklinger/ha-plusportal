@@ -9,6 +9,24 @@ a major-equivalent change moves the minor instead.
 major-equivalent version move must carry a `### Breaking` subsection — see PP-SEC-007 and
 PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
 
+## [0.5.0] - 2026-11-17
+
+### Added
+- A feed-in price (*Einspeisevergütung*, EUR/kWh), optional and independent of the tariff,
+  in the setup form and under Configure. A meter that feeds in then gets a
+  `<meter> feed-in compensation` statistic for the Energy dashboard's return-to-grid
+  compensation, the price as a diagnostic entity, and `Earnings last day`,
+  `Earnings this month` and `Earnings previous month` beside the feed-in energy sensors.
+  Compensation is never offset against cost, forecast or settlement (PP-HA-034 to
+  PP-HA-037).
+
+### Fixed
+- The README told you to price the Energy dashboard's grid consumption with the
+  `Energy price` entity, and feed-in with a static price. Neither works: Home Assistant
+  applies a price only to a source that is an entity, and these are external statistics, so
+  the dashboard showed no money at all. It now points to `<meter> grid cost` and
+  `<meter> feed-in compensation`.
+
 ## [0.4.2] - 2026-11-17
 
 ### Fixed

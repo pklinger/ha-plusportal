@@ -32,6 +32,7 @@ from .const import (
     CONF_BASE_PRICE,
     CONF_BILLING_YEAR_START,
     CONF_ENERGY_PRICE,
+    CONF_FEED_IN_PRICE,
     CONF_MONTHLY_ADVANCE,
     CONF_SCAN_INTERVAL_HOURS,
     CONF_TENANT,
@@ -42,7 +43,7 @@ from .const import (
     MIN_SCAN_INTERVAL_HOURS,
     PORTAL_TIMEOUT,
 )
-from .tariff import parse_billing_year_start
+from .tariff import feed_in_price_from_options, parse_billing_year_start
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,6 +101,12 @@ def tariff_schema(current: Mapping[str, Any]) -> vol.Schema:
                 CONF_BILLING_YEAR_START,
                 default=current.get(CONF_BILLING_YEAR_START, DEFAULT_BILLING_YEAR_START),
             ): TextSelector(),
+            # PP-HA-034: after everything that belongs to the supply contract,
+            # because it is not part of it.
+            vol.Optional(
+                CONF_FEED_IN_PRICE,
+                description={"suggested_value": current.get(CONF_FEED_IN_PRICE)},
+            ): _price_selector(5.0, step="any"),
             vol.Optional(
                 CONF_SCAN_INTERVAL_HOURS,
                 default=current.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
@@ -295,6 +302,12 @@ def _validate_tariff(options: Mapping[str, Any]) -> None:
         billing_year_start = parse_billing_year_start(raw_start)
     except ValueError:
         raise ValueError(CONF_BILLING_YEAR_START) from None
+
+    # Asked of the function that reads the option later, so what the form
+    # accepts and what the integration then uses cannot drift apart. Before the
+    # early return below: the feed-in price is valid without an energy price.
+    if CONF_FEED_IN_PRICE in options and feed_in_price_from_options(options) is None:
+        raise ValueError(CONF_FEED_IN_PRICE)
 
     if CONF_ENERGY_PRICE not in options:
         return
