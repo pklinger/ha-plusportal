@@ -636,6 +636,183 @@ async def test_cost_sensor_names_stay_short_enough_for_the_device_card(
         assert len(name) <= 26, f"{name!r} is {len(name)} characters"
 
 
+# ------------------------------------------------- cost across refreshes
+
+
+@pytest.fixture
+def windowed_portal(meter_point, channel, overview, session, freezer):
+    """Serve a portal that answers for the window it is asked for, and no more.
+
+    Every other fixture here hands back the same readings whatever range is
+    requested. That is what hid PP-HA-038: the second refresh asks for three
+    weeks, and a mock that returns its whole series regardless makes the cost
+    figures look as though they still covered the year.
+
+    Two days of data on 15 November: one in July, long outside the correction
+    window, at 0.10 kWh a quarter hour, and one last week at 0.01 kWh. The
+    series is exposed as ``client.series`` so a test can let the portal correct
+    a value between two refreshes.
+    """
+    freezer.move_to("2026-11-15 12:00:00+00:00")
+    series = [
+        *quarter_hours(datetime(2026, 7, 20, tzinfo=PORTAL_TZ), 96, kwh="0.10"),
+        *quarter_hours(datetime(2026, 11, 10, tzinfo=PORTAL_TZ), 96, kwh="0.01"),
+    ]
+    with patch(
+        "custom_components.plusportal.coordinator.PlusPortalClient", autospec=True
+    ) as factory:
+        client = factory.return_value
+        client.login = AsyncMock(return_value=session)
+        client.get_overview = AsyncMock(return_value=[overview])
+        client.get_meter_points = AsyncMock(return_value=[meter_point])
+        client.get_channels = AsyncMock(return_value=[channel])
+        # The same filter the real client applies: inclusive, by local day.
+        client.get_interval_readings = AsyncMock(
+            side_effect=lambda ch, start, end: [
+                reading for reading in series if start <= reading.start.date() <= end
+            ]
+        )
+        client.aclose = AsyncMock()
+        client.series = series
+        yield client
+
+
+async def refresh(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Poll the portal again, as the coordinator does every few hours."""
+    with patch("custom_components.plusportal.statistics.async_add_external_statistics"):
+        await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+
+def amount(hass: HomeAssistant, key: str) -> Decimal:
+    """Read one cost sensor of the test meter as an exact amount."""
+    return Decimal(hass.states.get(f"sensor.1abc0000000000_{key}").state)
+
+
+async def test_cost_to_date_still_covers_the_billing_year_after_a_second_refresh(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, windowed_portal
+) -> None:
+    """PP-HA-038: the second refresh re-reads three weeks; the bill is for the year.
+
+    10.56 kWh at 35 ct is 3.70 EUR, and two days of a 12 EUR standing charge
+    are 7 ct. Computed from the correction window alone it is 0.34 + 0.03 —
+    still a believable amount, which is why nothing gave it away.
+    """
+    await setup_entry(hass, tariff_entry)
+    assert amount(hass, "cost_to_date") == Decimal("3.77"), "the backfill covers both days"
+
+    await refresh(hass, tariff_entry)
+
+    asked_from = windowed_portal.get_interval_readings.call_args.args[1]
+    assert asked_from == date(2026, 10, 25), "PP-HA-005: only the correction window is re-read"
+    assert amount(hass, "energy_cost_to_date") == Decimal("3.70")
+    assert amount(hass, "standing_charge_to_date") == Decimal("0.07")
+    assert amount(hass, "cost_to_date") == Decimal("3.77")
+
+
+async def test_the_forecast_still_rests_on_the_billing_year_after_a_second_refresh(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, windowed_portal
+) -> None:
+    """PP-HA-038: three weeks of November are not a year.
+
+    10.56 kWh in 48 hours is 1927.2 kWh over the year's 8760, so 674.52 EUR
+    plus the standing charge, against 960 EUR of advances. From the correction
+    window alone the same sensor says 134.64 EUR: a year extrapolated from one
+    day of one season, backed by 0.3 % of it instead of 0.5 %.
+    """
+    await setup_entry(hass, tariff_entry)
+
+    await refresh(hass, tariff_entry)
+
+    assert amount(hass, "projected_cost_billing_year") == Decimal("686.52")
+    assert amount(hass, "expected_settlement_billing_year") == Decimal("-273.48")
+    forecast = hass.states.get("sensor.1abc0000000000_projected_cost_billing_year")
+    assert forecast.attributes["data_coverage_percent"] == 0.5
+
+
+async def test_a_corrected_value_replaces_the_one_kept_for_the_cost(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, windowed_portal
+) -> None:
+    """PP-HA-038: the correction window is re-read so that the newer value wins.
+
+    Last week's day arrives as substitute values and is then corrected to
+    twice as much. 9.6 + 1.92 kWh at 35 ct is 4.03 EUR; billing both versions
+    would make it 4.37 over three days, keeping the old one 3.70.
+    """
+    last_week = datetime(2026, 11, 10, tzinfo=PORTAL_TZ)
+    series = windowed_portal.series
+    series[96:] = quarter_hours(last_week, 96, kwh="0.01", state=ValueState.SUBSTITUTE)
+    await setup_entry(hass, tariff_entry)
+    assert amount(hass, "energy_cost_to_date") == Decimal("3.70")
+
+    series[96:] = quarter_hours(last_week, 96, kwh="0.02")
+    await refresh(hass, tariff_entry)
+
+    assert amount(hass, "energy_cost_to_date") == Decimal("4.03")
+    assert amount(hass, "standing_charge_to_date") == Decimal("0.07"), "two days, not three"
+
+
+def kept_days(entry: MockConfigEntry) -> set[tuple[int, date]]:
+    """Which days of which metering point the coordinator holds on to.
+
+    The one part of PP-HA-038 no entity shows: what is kept between refreshes
+    costs memory and nothing else, so the tests for it have to look inside.
+    """
+    return {
+        (meter_point_id, reading.day)
+        for (meter_point_id, _obis), readings in entry.runtime_data._year_to_date.items()
+        for reading in readings.values()
+    }
+
+
+async def test_readings_of_a_finished_billing_year_are_not_kept(
+    hass: HomeAssistant, tariff_entry: MockConfigEntry, windowed_portal, freezer
+) -> None:
+    """PP-HA-038: the projection never looks further back than its billing year.
+
+    Without a bound, an instance that runs across New Year carries the old
+    year's 35,000 quarter hours until the next restart, for nothing. That goes
+    for what was kept and for what the correction window brings in alike: on
+    2 January the window still reaches three weeks back into December.
+    """
+    await setup_entry(hass, tariff_entry)
+    assert kept_days(tariff_entry) == {(1000, date(2026, 7, 20)), (1000, date(2026, 11, 10))}
+
+    freezer.move_to("2027-01-02 12:00:00+00:00")
+    windowed_portal.series.extend(quarter_hours(datetime(2026, 12, 20, tzinfo=PORTAL_TZ), 96))
+    windowed_portal.series.extend(quarter_hours(datetime(2027, 1, 1, tzinfo=PORTAL_TZ), 96))
+    await refresh(hass, tariff_entry)
+
+    assert kept_days(tariff_entry) == {(1000, date(2027, 1, 1))}
+    assert amount(hass, "energy_cost_to_date") == Decimal("0.34"), "0.96 kWh of the new year"
+
+
+async def test_a_metering_point_the_portal_no_longer_reports_is_not_kept(
+    hass: HomeAssistant,
+    tariff_entry: MockConfigEntry,
+    windowed_portal,
+    meter_point,
+    channel,
+    overview,
+) -> None:
+    """PP-HA-038: PP-HA-029's reassigned id must not leave a year behind each time.
+
+    The portal has handed one physical meter dozens of ids in a few months.
+    Each gets a full backfill, so each would otherwise strand its own copy of
+    the billing year in memory until Home Assistant restarts.
+    """
+    from dataclasses import replace
+
+    await setup_entry(hass, tariff_entry)
+
+    windowed_portal.get_meter_points = AsyncMock(return_value=[replace(meter_point, id=2000)])
+    windowed_portal.get_channels = AsyncMock(return_value=[replace(channel, meter_point_id=2000)])
+    windowed_portal.get_overview = AsyncMock(return_value=[replace(overview, meter_point_id=2000)])
+    await refresh(hass, tariff_entry)
+
+    assert kept_days(tariff_entry) == {(2000, date(2026, 7, 20)), (2000, date(2026, 11, 10))}
+
+
 # ----------------------------------------------------------------- feed-in
 
 

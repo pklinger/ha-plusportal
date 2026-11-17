@@ -19,6 +19,21 @@ PP-SEC-008 in [docs/specs/safety.md](docs/specs/safety.md).
   statistics with nothing older than three weeks. Initial setup was never affected; a
   metering point id the portal reports for the first time on a later poll was (PP-HA-039).
 
+## [0.4.1] - 2026-11-16
+
+### Fixed
+- The cost sensors covered the billing year only until the second poll. The first refresh
+  after a restart reads the whole history; every later one re-reads three weeks, and the
+  cost projection was computed from whatever the refresh at hand had fetched. So six hours
+  after each restart, by default, `Total cost, accrued`, `Energy cost, accrued`,
+  `Standing charge, accrued` and the coverage behind them shrank from "since the billing
+  year began" to "the last three weeks", and `Cost forecast, year` and
+  `Settlement forecast` extrapolated the year from those three weeks of one season. Every
+  figure remained a believable amount, which is why it went unnoticed. The billing year's
+  readings are now kept between refreshes and each correction window is laid over them, so
+  a corrected value still replaces the earlier one. The Energy dashboard was never
+  affected: its statistics continue a stored sum (PP-HA-038).
+
 ## [0.4.0] - 2026-11-04
 
 ### Breaking
