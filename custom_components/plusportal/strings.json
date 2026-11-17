@@ -25,7 +25,11 @@
           "monthly_advance_eur": "Monthly advance payment (EUR)",
           "billing_year_start": "Billing year starts (MM-DD)",
           "scan_interval_hours": "Update interval (hours)",
-          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)"
+          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)",
+          "feed_in_price_eur_per_kwh": "Feed-in price (EUR/kWh)"
+        },
+        "data_description": {
+          "feed_in_price_eur_per_kwh": "What you are paid per kWh fed into the grid. Leave it empty if you do not feed in."
         }
       }
     },
@@ -36,7 +40,8 @@
       "no_meters": "This account has no metering points, so there would be nothing to show.",
       "unknown": "Unexpected error. Check the log for details.",
       "invalid_billing_year_start": "Enter the billing year start as MM-DD, e.g. 01-01. It must exist in every year, so 02-29 is not allowed.",
-      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative."
+      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative.",
+      "invalid_feed_in_price_eur_per_kwh": "The feed-in price must be a number and cannot be negative."
     },
     "abort": {
       "already_configured": "This account is already set up.",
@@ -53,13 +58,18 @@
           "monthly_advance_eur": "Monthly advance payment (EUR)",
           "billing_year_start": "Billing year starts (MM-DD)",
           "scan_interval_hours": "Update interval (hours)",
-          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)"
+          "energy_price_eur_per_kwh": "Energy price (EUR/kWh)",
+          "feed_in_price_eur_per_kwh": "Feed-in price (EUR/kWh)"
+        },
+        "data_description": {
+          "feed_in_price_eur_per_kwh": "What you are paid per kWh fed into the grid. Leave it empty if you do not feed in."
         }
       }
     },
     "error": {
       "invalid_billing_year_start": "Enter the billing year start as MM-DD, e.g. 01-01. It must exist in every year, so 02-29 is not allowed.",
-      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative."
+      "invalid_energy_price_eur_per_kwh": "Prices cannot be negative.",
+      "invalid_feed_in_price_eur_per_kwh": "The feed-in price must be a number and cannot be negative."
     }
   },
   "entity": {
@@ -85,11 +95,23 @@
       "expected_settlement_billing_year": {
         "name": "Settlement forecast"
       },
+      "feed_in_compensation_last_day": {
+        "name": "Earnings last day"
+      },
+      "feed_in_compensation_previous_month": {
+        "name": "Earnings previous month"
+      },
+      "feed_in_compensation_this_month": {
+        "name": "Earnings this month"
+      },
       "feed_in_last_day": {
         "name": "Feed-in last day"
       },
       "feed_in_previous_month": {
         "name": "Feed-in previous month"
+      },
+      "feed_in_price": {
+        "name": "Feed-in price"
       },
       "feed_in_this_month": {
         "name": "Feed-in this month"

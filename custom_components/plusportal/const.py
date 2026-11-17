@@ -15,6 +15,9 @@ LEGACY_CONF_ENERGY_PRICE_CT: Final = "energy_price_ct_per_kwh"
 CONF_BASE_PRICE: Final = "base_price_eur_per_year"
 CONF_MONTHLY_ADVANCE: Final = "monthly_advance_eur"
 CONF_BILLING_YEAR_START: Final = "billing_year_start"
+#: PP-HA-034: what is paid per kWh fed into the grid. Not part of the tariff:
+#: a different contract, usually with the grid operator rather than the supplier.
+CONF_FEED_IN_PRICE: Final = "feed_in_price_eur_per_kwh"
 CONF_SCAN_INTERVAL_HOURS: Final = "scan_interval_hours"
 
 DEFAULT_BILLING_YEAR_START: Final = "01-01"
@@ -36,3 +39,4 @@ PORTAL_TIMEOUT: Final = 60.0
 #: Statistic id suffixes, as they appear in the Energy dashboard.
 STATISTIC_ENERGY: Final = "energy"
 STATISTIC_COST: Final = "cost"
+STATISTIC_COMPENSATION: Final = "compensation"

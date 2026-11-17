@@ -12,6 +12,7 @@ from .const import (
     CONF_BASE_PRICE,
     CONF_BILLING_YEAR_START,
     CONF_ENERGY_PRICE,
+    CONF_FEED_IN_PRICE,
     CONF_MONTHLY_ADVANCE,
     DEFAULT_BILLING_YEAR_START,
 )
@@ -69,3 +70,31 @@ def tariff_from_options(options: Mapping[str, Any]) -> Tariff | None:
         )
     except (InvalidOperation, ValueError):
         return None
+
+
+def feed_in_price_from_options(options: Mapping[str, Any]) -> Decimal | None:
+    """Read the feed-in price in EUR/kWh from config entry options, or ``None``.
+
+    PP-HA-034: independent of the energy price, so it is not part of the
+    tariff. ``None`` means feed-in is not priced at all, which is different
+    from a price of zero. A stored value that cannot be meant seriously is
+    treated as absent rather than raised, for the same reason as in
+    ``tariff_from_options``: compensation disappears until it is corrected,
+    and the entry still loads.
+    """
+    raw = options.get(CONF_FEED_IN_PRICE)
+    if raw is None:
+        return None
+
+    try:
+        # Through its text: the form hands over a float, and Decimal(0.0811)
+        # is 0.08110000000000000264… rather than what was typed.
+        price = Decimal(str(raw))
+    except InvalidOperation:
+        return None
+
+    # "nan" and "inf" both parse. Either would price every statistic row as
+    # not-a-number or infinite, and comparing NaN raises instead of answering.
+    if not price.is_finite() or price < 0:
+        return None
+    return price

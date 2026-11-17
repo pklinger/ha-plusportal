@@ -38,7 +38,7 @@ from homeassistant.core import HomeAssistant
 from pyplusportal.cost import Tariff
 from pyplusportal.models import Reading
 
-from .const import DOMAIN, STATISTIC_COST, STATISTIC_ENERGY
+from .const import DOMAIN, STATISTIC_COMPENSATION, STATISTIC_COST, STATISTIC_ENERGY
 
 if TYPE_CHECKING:
     from .coordinator import MeterData, PlusPortalConfigEntry
@@ -116,8 +116,14 @@ async def async_publish_statistics(
     entry: PlusPortalConfigEntry,
     data: Mapping[int, MeterData],
     tariff: Tariff | None,
+    feed_in_price: Decimal | None = None,
 ) -> None:
-    """Write energy — and, when priced, cost — statistics for every meter."""
+    """Write energy statistics for every meter, and money where a price is set.
+
+    Cost for what was drawn at the tariff's energy price, compensation for what
+    was fed in at the feed-in price. Each is optional and neither stands in for
+    the other.
+    """
     if not _recorder_available(hass):
         # The recorder can be disabled in Home Assistant. Consumption sensors
         # still work; only the Energy dashboard history is unavailable.
@@ -159,6 +165,20 @@ async def async_publish_statistics(
                     CURRENCY_EUR,
                     None,
                     {bucket: value * price for bucket, value in totals.items()},
+                )
+
+            # PP-HA-035, PP-HA-037: the mirror image, at its own rate. A series
+            # rather than a price for the dashboard to apply, because Home
+            # Assistant only derives money from a price when the energy source
+            # is an entity, and these are external statistics.
+            if feed_in_price is not None and obis == meter_data.feed_in_obis:
+                await _async_publish_series(
+                    hass,
+                    statistic_id(entry.unique_id, meter.id, channel, STATISTIC_COMPENSATION),
+                    f"{name} feed-in compensation",
+                    CURRENCY_EUR,
+                    None,
+                    {bucket: value * feed_in_price for bucket, value in totals.items()},
                 )
 
 

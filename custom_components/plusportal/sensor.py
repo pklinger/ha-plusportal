@@ -29,7 +29,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from pyplusportal.cost import Tariff
+from pyplusportal.cost import Tariff, money
 from pyplusportal.models import Reading
 
 from .const import DOMAIN
@@ -82,6 +82,33 @@ def _feed_in_previous_month(data: MeterData) -> Decimal | None:
     return overview.prev_month_sum if overview else None
 
 
+def _compensation(energy_kwh: Decimal | None, price: Decimal) -> Decimal | None:
+    """Price an amount of feed-in, leaving absent energy absent (PP-HA-008)."""
+    return None if energy_kwh is None else money(energy_kwh * price)
+
+
+def _feed_in_price(data: MeterData, price: Decimal) -> Decimal:
+    """Return the price per kWh every compensation amount was multiplied by."""
+    return price
+
+
+def _compensation_last_day(data: MeterData, price: Decimal) -> Decimal | None:
+    return _compensation(_feed_in_last_day_value(data), price)
+
+
+def _compensation_last_day_attributes(data: MeterData, price: Decimal) -> Mapping[str, Any]:
+    """Name the day, exactly as the energy sensor beside it does."""
+    return _feed_in_last_day_attributes(data)
+
+
+def _compensation_this_month(data: MeterData, price: Decimal) -> Decimal | None:
+    return _compensation(_feed_in_this_month(data), price)
+
+
+def _compensation_previous_month(data: MeterData, price: Decimal) -> Decimal | None:
+    return _compensation(_feed_in_previous_month(data), price)
+
+
 def _this_month(data: MeterData) -> Decimal | None:
     return data.overview.this_month_sum if data.overview else None
 
@@ -117,7 +144,7 @@ def _standing_charge(data: MeterData, tariff: Tariff) -> Decimal | None:
 
 
 def _energy_price(data: MeterData, tariff: Tariff) -> Decimal:
-    """Price per kWh, so the Energy dashboard can attach it to a source."""
+    """Return the configured price per kWh every energy cost was multiplied by."""
     return tariff.energy_price_eur_per_kwh
 
 
@@ -187,6 +214,8 @@ class PlusPortalSensorDescription(SensorEntityDescription):
     tariff_value_fn: Callable[[MeterData, Tariff], Any] | None = None
     attributes_fn: Callable[[MeterData], Mapping[str, Any]] | None = None
     tariff_attributes_fn: Callable[[MeterData, Tariff], Mapping[str, Any]] | None = None
+    feed_in_value_fn: Callable[[MeterData, Decimal], Any] | None = None
+    feed_in_attributes_fn: Callable[[MeterData, Decimal], Mapping[str, Any]] | None = None
 
 
 CONSUMPTION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
@@ -238,8 +267,9 @@ CONSUMPTION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
 
 #: PP-HA-031: created only for a metering point that actually feeds in, so a
 #: meter without a feed-in register does not grow three permanently unknown
-#: entities. Energy only — the portal publishes no compensation rate, and
-#: pricing feed-in at the import tariff would be nonsense.
+#: entities. Energy only: what it earns is FEED_IN_COMPENSATION_SENSORS, at a
+#: price of its own, because pricing feed-in at the import tariff would be
+#: nonsense.
 FEED_IN_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
     PlusPortalSensorDescription(
         key="feed_in_last_day",
@@ -268,6 +298,50 @@ FEED_IN_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=3,
         value_fn=_feed_in_previous_month,
+    ),
+)
+
+#: PP-HA-036: created only for a metering point that feeds in *and* has a
+#: feed-in price. Each amount is the energy sensor of the same name above,
+#: times that price — so it can be checked with one multiplication, and so it
+#: moves exactly when its neighbour does. Never part of any cost figure
+#: (PP-HA-037).
+FEED_IN_COMPENSATION_SENSORS: tuple[PlusPortalSensorDescription, ...] = (
+    PlusPortalSensorDescription(
+        key="feed_in_price",
+        translation_key="feed_in_price",
+        native_unit_of_measurement="EUR/kWh",
+        suggested_display_precision=4,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        feed_in_value_fn=_feed_in_price,
+    ),
+    PlusPortalSensorDescription(
+        key="feed_in_compensation_last_day",
+        translation_key="feed_in_compensation_last_day",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        feed_in_value_fn=_compensation_last_day,
+        feed_in_attributes_fn=_compensation_last_day_attributes,
+    ),
+    PlusPortalSensorDescription(
+        key="feed_in_compensation_this_month",
+        translation_key="feed_in_compensation_this_month",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        feed_in_value_fn=_compensation_this_month,
+    ),
+    PlusPortalSensorDescription(
+        key="feed_in_compensation_previous_month",
+        translation_key="feed_in_compensation_previous_month",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=CURRENCY_EUR,
+        suggested_display_precision=2,
+        feed_in_value_fn=_compensation_previous_month,
     ),
 )
 
@@ -376,15 +450,17 @@ async def async_setup_entry(
     def _descriptions(meter_point_id: int) -> tuple[PlusPortalSensorDescription, ...]:
         """Which sensors one metering point gets.
 
-        Feed-in and cost are both conditional, and for the same reason: an
-        entity that can only ever be unknown is indistinguishable from a broken
-        one (PP-HA-011, PP-HA-031).
+        Feed-in, cost and compensation are all conditional, and for the same
+        reason: an entity that can only ever be unknown is indistinguishable
+        from a broken one (PP-HA-011, PP-HA-031, PP-HA-036).
         """
         descriptions = CONSUMPTION_SENSORS
         if coordinator.tariff is not None:
             descriptions += COST_SENSORS
         if coordinator.data[meter_point_id].has_feed_in:
             descriptions += FEED_IN_SENSORS
+            if coordinator.feed_in_price is not None:
+                descriptions += FEED_IN_COMPENSATION_SENSORS
         return descriptions
 
     known: set[int] = set()
@@ -470,6 +546,9 @@ class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
         if description.tariff_value_fn is not None:
             tariff = self.coordinator.tariff
             return None if tariff is None else description.tariff_value_fn(data, tariff)
+        if description.feed_in_value_fn is not None:
+            price = self.coordinator.feed_in_price
+            return None if price is None else description.feed_in_value_fn(data, price)
         if description.value_fn is not None:
             return description.value_fn(data)
         return None
@@ -485,6 +564,9 @@ class PlusPortalSensor(CoordinatorEntity[PlusPortalCoordinator], SensorEntity):
         if description.tariff_attributes_fn is not None:
             tariff = self.coordinator.tariff
             return None if tariff is None else description.tariff_attributes_fn(data, tariff)
+        if description.feed_in_attributes_fn is not None:
+            price = self.coordinator.feed_in_price
+            return None if price is None else description.feed_in_attributes_fn(data, price)
         if description.attributes_fn is not None:
             return description.attributes_fn(data)
         return None

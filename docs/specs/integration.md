@@ -83,8 +83,10 @@ whether or not any energy is used.
 ### PP-HA-015 — The energy price is exposed as an entity
 In EUR/kWh, present only when a tariff is configured.
 
-*Why:* the Energy dashboard can attach a price entity to a consumption source. Without
-one, users have to retype the price they already entered.
+*Why:* the figure every cost amount is multiplied by belongs on the device card, where it
+can be checked. It does not price the Energy dashboard's grid consumption: Home Assistant
+applies a price entity only to a source that is itself an entity, and this one is an external
+statistic (PP-HA-034). The dashboard takes `<meter> grid cost` instead.
 
 ### PP-HA-016 — The settlement figure carries what it is measured against
 Advances paid so far, advances due for the year, the billing year's bounds and how much of
@@ -179,8 +181,8 @@ consumption and nothing to suggest that cost exists, that it is optional, or tha
 added later — so the absence reads as the integration being incomplete.
 
 ### PP-HA-025 — Statistics are named by what they are, not by their meter
-`<meter> grid consumption`, `<meter> grid cost` and `<meter> return to grid`, using the
-Energy dashboard's own terms.
+`<meter> grid consumption`, `<meter> grid cost`, `<meter> return to grid` and
+`<meter> feed-in compensation`, using the Energy dashboard's own terms.
 
 *Why:* the dashboard's source picker lists statistics by name among every entity in the
 system. `<meter> energy` sorts under the meter number, far from anything related, and says
@@ -188,7 +190,9 @@ nothing in a non-English interface — the statistic was there and still could n
 
 ### PP-HA-026 — Each OBIS channel gets its own statistic series
 `plusportal:<account>_<meter>_<channel>_<series>`, with `import` and `export` as readable
-slugs. Only the billed import channel is priced, and only it feeds the sensors.
+slugs. Only the billed import channel is priced at the energy price, and only it feeds the
+consumption and cost sensors. The export channel is priced at the feed-in price alone
+(PP-HA-035).
 
 *Why:* a meter with feed-in reports two channels. Merging them makes the Energy dashboard
 show a grid draw that includes energy the household exported — silently, as a number that
@@ -263,6 +267,49 @@ direction disappears; on an account where feed-in sits under its own customer nu
 is the whole feature. A cache keyed on the meter alone goes wrong the same way, one step
 earlier: the second customer is answered with the first one's channels. Two devices would be
 the opposite error — one meter, one place in the interface.
+
+### PP-HA-034 — The feed-in price is a setting of its own, independent of the energy price
+An optional `feed_in_price_eur_per_kwh`, offered in the same form as the tariff. Empty means
+no price; zero is a price. A stored value that is not a usable number is treated as no price.
+
+*Why:* the portal publishes no feed-in tariff, and Home Assistant cannot supply one either.
+It derives cost or compensation from a static price or a price entity only when the energy
+source is an entity, and the feed-in series is an external statistic
+(`homeassistant/components/energy/sensor.py`, 2026.2.3) — so without a price of its own the
+Energy dashboard can never show money for feed-in. It is independent of the energy price
+because it is a different contract with a different party, usually the grid operator, and
+someone may know one figure without the other. A malformed stored value must not keep the
+entry from loading: compensation disappears until it is corrected, and everything else keeps
+working.
+
+### PP-HA-035 — Feed-in compensation reaches the Energy dashboard as a statistic of its own
+`plusportal:<account>_<meter>_export_compensation`, in EUR: each hour's billable feed-in
+times the feed-in price. Written only when a feed-in price is configured.
+
+*Why:* it is the only form in which the dashboard accepts money for an external statistic
+(PP-HA-034) — the same reason grid cost is a statistic rather than left to the price entity.
+Billable readings only, as in PP-HA-006: a provisional hour would be paid for and then
+corrected.
+
+### PP-HA-036 — Compensation entities exist only for a meter that feeds in and has a price
+The feed-in price in EUR/kWh, and the compensation for the last day, the current month and
+the previous month. Each amount is the feed-in sensor beside it times the price, rounded
+half-up at the cent. A month the portal reports no sum for is unknown, not zero.
+
+*Why:* PP-HA-011 and PP-HA-031 together — without a price, or without feed-in, these
+entities could only ever be unknown. Tying each amount to its energy neighbour makes it
+checkable by hand: one multiplication, with both factors on the same device card. The month
+amounts therefore inherit what their neighbours are, the portal's own month sums, which can
+still move while it backfills. The statistic (PP-HA-035) is the figure built from billable
+readings alone.
+
+### PP-HA-037 — Compensation is never netted against cost
+The feed-in price changes no cost figure, forecast or settlement, and the energy price is
+never applied to feed-in. Each direction has its own series and its own rate.
+
+*Why:* compensation is usually paid by the grid operator, separately from the electricity
+bill. A settlement forecast that deducts it predicts a refund the supplier will never pay,
+and a net figure cannot be checked against either invoice.
 
 ### PP-HA-038 — Cost figures cover the billing year on every refresh, not only the first
 The billed channel's readings since the billing year began are kept between refreshes, and
